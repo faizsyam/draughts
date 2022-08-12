@@ -175,8 +175,6 @@ class Test(unittest.TestCase):
         so = SearchOutput()
         node = make_node(pos)
         search(so, node, si)
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
 
         max_depth = 15
         max_time = 5.0
@@ -184,13 +182,6 @@ class Test(unittest.TestCase):
         print(f'score = {score}, move = {print_move(move, pos)}')
         self.assertEqual('17-22', print_move(move, pos))
 
-
-=======
-        print('asdas')
->>>>>>> Stashed changes
-=======
-        print('asdas')
->>>>>>> Stashed changes
     def test_play_forced_moves(self):
         text1 = '''
            x   .   .   .   .
