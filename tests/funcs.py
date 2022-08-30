@@ -5,6 +5,7 @@ import loggers as lg
 
 from game import Game, GameState
 from model import Residual_CNN
+from model2 import CNN_Net
 
 from agent import Agent, User
 
@@ -45,6 +46,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
     points = {player1.name:[], player2.name:[]}
     
     for e in range(EPISODES):
+        print('episode: ', e+1)
         logger.info('====================')
         logger.info('EPISODE %d OF %d', e+1, EPISODES)
         logger.info('====================')
@@ -78,6 +80,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
         env.gameState.render(logger)
 
         while done == 0:
+            print('turn ', turn)
             turn = turn + 1
     
             #### Run the MCTS algo and return an action
@@ -104,6 +107,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             env.gameState.render(logger)
 
             if done == 1: 
+                print('DONE')
                 if memory != None:
                     #### If the game is finished, assign the values correctly to the game moves
                     for move in memory.stmemory:

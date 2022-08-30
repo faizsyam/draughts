@@ -4,17 +4,18 @@ import logging
 # import unittest
 from draughts1 import *
 import pandas as pd
+import random
 
 class Game:
 
 	def __init__(self):	
 		self.gameState = GameState(start_position())
 		self.actionSpace = np.zeros((2,50), dtype=np.int)
-		self.grid_shape = (5,10)
-		self.input_shape = (4,5,10)
+		self.grid_shape = (10,10)
+		self.input_shape = (4,10,10)
 		self.name = 'draughts'
 		self.state_size = len(self.gameState.binary)
-		self.action_size = 570
+		self.action_size = 81
 
 	def reset(self):
 		self.gameState = GameState(start_position())
@@ -79,7 +80,10 @@ class Game:
 
 class GameState():
 	def __init__(self, board):
-		self.board = board
+		pos_board = board
+		if not pos_board.is_white_to_move():
+			pos_board.flip()
+		self.board = pos_board
 		self.playerTurn = 1 if board.is_white_to_move() else -1
 		self.binary = self._binary()
 		self.id = self._convertStateToId()
@@ -94,28 +98,32 @@ class GameState():
 
 	def _binary(self):
 
-		text = print_position(self.board, False, True)
+		return pos_to_numpy1(self.board)
+		# text = print_position(self.board, False, True)
 
-		chr_player = 'o' if self.board.is_white_to_move() else 'x'
-		chr_other = 'x' if self.board.is_white_to_move() else 'o'
+		# chr_player = 'o' if self.board.is_white_to_move() else 'x'
+		# chr_other = 'x' if self.board.is_white_to_move() else 'o'
 
-		currentplayer_man = []
-		other_man = []
-		currentplayer_king = []
-		other_king = []
+		# currentplayer_man = []
+		# other_man = []
+		# currentplayer_king = []
+		# other_king = []
 
-		for i in text[:-1]:
-			currentplayer_man.append(1 if i==chr_player else 0)
-			other_man.append(1 if i==chr_other else 0)
-			currentplayer_king.append(1 if i==chr_player.upper() else 0)
-			other_king.append(1 if i==chr_other.upper() else 0)
+		# for i in text[:-1]:
+		# 	currentplayer_man.append(1 if i==chr_player else 0)
+		# 	other_man.append(1 if i==chr_other else 0)
+		# 	currentplayer_king.append(1 if i==chr_player.upper() else 0)
+		# 	other_king.append(1 if i==chr_other.upper() else 0)
 
-		position = np.concatenate((currentplayer_man, other_man, currentplayer_king, other_king), axis=0)
-		position = position.flatten()
+		# position = np.concatenate((currentplayer_man, other_man, currentplayer_king, other_king), axis=0)
+		# position = position.flatten()
 
-		return (position)
+		# return (position)
 
 	def _convertStateToId(self):
+		
+		position = pos_to_numpy1(self.board)
+		return ''.join(map(str,position))
 
 		text = print_position(self.board, False, True)
 
@@ -157,11 +165,20 @@ class GameState():
 
 
 	def takeAction(self, action):
-		newpos = self.board.succ(action)
+		newpos = play_forced_moves(self.board.succ(action))
+		while newpos.is_capture():
+			moves = generate_moves(newpos)
+			newpos = play_forced_moves(self.board.succ(moves[random.randint(0,len(moves)-1)]))
 		newState = GameState(newpos)
 
 		value = 0
 		done = 0
+
+		if newpos.white_king_count() > 0 or newpos.black_king_count() > 0:
+
+			print('XXXXX ',print_move(action, self.board))
+			# display_position(self.board)
+			# display_position(newpos)
 
 		if newpos.is_end():
 			value = newState.value[0]
@@ -185,6 +202,10 @@ def board_to_text(pos, currentBoard):
 			text += y
 	text += 'W' if pos.is_white_to_move() else'B'
 	return text
+
+def init_normal_move_df():
+	nmoves = pd.read_csv('normal_moves.csv')
+	return nmoves
 
 def init_move_df():
 	board = [[0,1,0,2,0,3,0,4,0,5]
@@ -243,3 +264,4 @@ def init_move_df():
 	return mdf
 
 move_df = init_move_df()
+normal_move_df = init_normal_move_df()
