@@ -6,6 +6,9 @@ from draughts1 import *
 import pandas as pd
 import random
 
+normal_move_df = pd.read_csv('normal_moves.csv')
+king_move_df = pd.read_csv('king_moves.csv')
+
 class Game:
 
 	def __init__(self):	
@@ -15,7 +18,8 @@ class Game:
 		self.input_shape = (4,10,10)
 		self.name = 'draughts'
 		self.state_size = len(self.gameState.binary)
-		self.action_size = 81
+		# self.action_size = 81
+		self.action_size = 570
 
 	def reset(self):
 		self.gameState = GameState(start_position())
@@ -29,8 +33,29 @@ class Game:
 		return ((next_state, value, done, info))
 
 	def identities(self, state, actionValues):
-		identities = [(state,actionValues)]
+		# FIX IDENTITIES
+		identities = [(state.binary,state.playerTurn,actionValues)]
 		
+		# bb = state.board
+		# bb.flip()
+		# flipped_state = GameState(bb)
+
+		# flipped_av = []
+		# for move_id in range(570):
+
+		# 	mv = king_move_df[king_move_df['move_id']==move_id]
+		# 	from_ = mv['from'].iloc[0]
+		# 	to_ = mv['to'].iloc[0]
+			
+		# 	from_ = 51 - from_
+		# 	to_ = 51 - to_
+
+		# 	new_id = king_move_df[(king_move_df['from']==from_)&(king_move_df['to']==to_)]['move_id'].iloc[0]
+			
+		# 	flipped_av.append(actionValues[new_id])
+
+		# identities.append((flipped_state,actionValues))
+		# identities.append((flipped_state,flipped_av))
 		# text = print_position(state.board, False, True)
 		# currentBoard = list(text[:-1])
 		# currentBoard = np.reshape(currentBoard,(10,5))
@@ -80,10 +105,7 @@ class Game:
 
 class GameState():
 	def __init__(self, board):
-		pos_board = board
-		if not pos_board.is_white_to_move():
-			pos_board.flip()
-		self.board = pos_board
+		self.board = board
 		self.playerTurn = 1 if board.is_white_to_move() else -1
 		self.binary = self._binary()
 		self.id = self._convertStateToId()
@@ -93,7 +115,10 @@ class GameState():
 		self.score = self._getScore()
 
 	def _allowedActions(self):
-		moves = generate_moves(self.board)
+		board = self.board
+		# if not board.is_white_to_move():
+			# board.flip()
+		moves = generate_moves(board)
 		return moves
 
 	def _binary(self):
@@ -155,7 +180,13 @@ class GameState():
 		# for x,y,z,a in self.winners:
 		# 	if (self.board[x] + self.board[y] + self.board[z] + self.board[a] == 4 * -self.playerTurn):
 		if self.board.is_end():
-			return (self.playerTurn, self.playerTurn, 1)
+			# print(self.board.turn())
+			# display_position(self.board)
+			# print('turn: ',self.board.turn())
+			# print('res: ',self.board.result(self.board.turn()))
+			turn = 1 if self.board.turn()==Side.White else -1
+			return (turn, turn, 1)
+			# return (self.playerTurn, self.playerTurn, 1)
 		return (0, 0, 0)
 
 
@@ -165,18 +196,35 @@ class GameState():
 
 
 	def takeAction(self, action):
-		newpos = play_forced_moves(self.board.succ(action))
+		# print('in')
+		board = self.board
+		# if not self.board.is_white_to_move():
+			# board.flip()
+		newpos = play_forced_moves(board.succ(action))
+		count = 0
+		# print('in2')
 		while newpos.is_capture():
+			count += 1
 			moves = generate_moves(newpos)
-			newpos = play_forced_moves(self.board.succ(moves[random.randint(0,len(moves)-1)]))
+			try:
+				newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
+			except:
+				display_position(newpos)
+				newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
+
+			
+		# if not self.board.is_white_to_move():
+			# newpos.flip()
+		
 		newState = GameState(newpos)
+		# print('outs: ', count)
 
 		value = 0
 		done = 0
 
-		if newpos.white_king_count() > 0 or newpos.black_king_count() > 0:
+		# if ((newpos.white_king_count() > 0) | (newpos.black_king_count() > 0)) & (self.board.white_king_count() == 0) & (self.board.black_king_count() == 0):
 
-			print('XXXXX ',print_move(action, self.board))
+			# print('XXXXX ',print_move(action, self.board), count)
 			# display_position(self.board)
 			# display_position(newpos)
 
@@ -203,65 +251,4 @@ def board_to_text(pos, currentBoard):
 	text += 'W' if pos.is_white_to_move() else'B'
 	return text
 
-def init_normal_move_df():
-	nmoves = pd.read_csv('normal_moves.csv')
-	return nmoves
 
-def init_move_df():
-	board = [[0,1,0,2,0,3,0,4,0,5]
-        ,[6,0,7,0,8,0,9,0,10,0]
-        ,[0,11,0,12,0,13,0,14,0,15]
-        ,[16,0,17,0,18,0,19,0,20,0]
-        ,[0,21,0,22,0,23,0,24,0,25]
-        ,[26,0,27,0,28,0,29,0,30,0]
-        ,[0,31,0,32,0,33,0,34,0,35]
-        ,[36,0,37,0,38,0,39,0,40,0]
-        ,[0,41,0,42,0,43,0,44,0,45]
-        ,[46,0,47,0,48,0,49,0,50,0]]
-
-	moves = []
-	idx = 0
-
-	for i in range(10):
-		for j in range(10):
-			if board[i][j]!=0:
-				start = board[i][j]
-				a = i + 1
-				b = j + 1
-				while (a<10)&(b<10):
-					end = board[a][b]
-					moves.append([idx,start,end])
-					idx+=1
-					a+=1
-					b+=1
-				a = i + 1
-				b = j - 1
-				while (a<10)&(b>=0):
-					end = board[a][b]
-					moves.append([idx,start,end])
-					idx+=1
-					a+=1
-					b-=1
-				a = i - 1
-				b = j + 1
-				while (a>=0)&(b<10):
-					end = board[a][b]
-					moves.append([idx,start,end])
-					idx+=1
-					a-=1
-					b+=1
-				a = i - 1
-				b = j - 1
-				while (a>=0)&(b>=0):
-					end = board[a][b]
-					moves.append([idx,start,end])
-					idx+=1
-					a-=1
-					b-=1
-
-	mdf = pd.DataFrame(moves,columns=['index','start','end'])
-
-	return mdf
-
-move_df = init_move_df()
-normal_move_df = init_normal_move_df()

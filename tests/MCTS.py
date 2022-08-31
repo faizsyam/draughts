@@ -48,7 +48,7 @@ class MCTS():
 		return len(self.tree)
 
 	def moveToLeaf(self):
-
+		
 		lg.logger_mcts.info('------MOVING TO LEAF------')
 
 		breadcrumbs = []
@@ -75,7 +75,6 @@ class MCTS():
 				Nb = Nb + edge.stats['N']
 
 			for idx, (action, move, edge) in enumerate(currentNode.edges):
-
 				U = self.cpuct * \
 					((1-epsilon) * edge.stats['P'] + epsilon * nu[idx] )  * \
 					np.sqrt(Nb) / (1 + edge.stats['N'])
@@ -97,16 +96,18 @@ class MCTS():
 			currentNode = simulationEdge.outNode
 			breadcrumbs.append(simulationEdge)
 
-		lg.logger_mcts.info('DONE...%d', done)
+		# lg.logger_mcts.info('DONE...%d', done)
 
 		return currentNode, value, done, breadcrumbs
 
 
 
 	def backFill(self, leaf, value, breadcrumbs):
-		lg.logger_mcts.info('------DOING BACKFILL------')
+		
+		# lg.logger_mcts.info('------DOING BACKFILL------')
 
 		currentPlayer = leaf.state.playerTurn
+
 
 		for edge in breadcrumbs:
 			playerTurn = edge.playerTurn
@@ -119,15 +120,15 @@ class MCTS():
 			edge.stats['W'] = edge.stats['W'] + value * direction
 			edge.stats['Q'] = edge.stats['W'] / edge.stats['N']
 
-			lg.logger_mcts.info('updating edge with value %f for player %d... N = %d, W = %f, Q = %f'
-				, value * direction
-				, playerTurn
-				, edge.stats['N']
-				, edge.stats['W']
-				, edge.stats['Q']
-				)
+			# lg.logger_mcts.info('updating edge with value %f for player %d... N = %d, W = %f, Q = %f'
+			# 	, value * direction
+			# 	, playerTurn
+			# 	, edge.stats['N']
+			# 	, edge.stats['W']
+			# 	, edge.stats['Q']
+			# 	)
 
-			edge.outNode.state.render(lg.logger_mcts)
+			# edge.outNode.state.render(lg.logger_mcts)
 
 	def addNode(self, node):
 		self.tree[node.id] = node

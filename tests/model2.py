@@ -23,6 +23,8 @@ class CNN_Net(nn.Module):
 		policy = self.policy_head(out)
 		return value, policy
 
+	# def train():
+	# 	return self.m
 
 	def __make_residual_blocks(self):
 		blocks = []
@@ -45,7 +47,7 @@ class CNN_Net(nn.Module):
 	def convertToModelInput(self,state):
 		inputToModel =  state.binary #np.append(state.binary, [(state.playerTurn + 1)/2] * self.input_dim[1] * self.input_dim[2])
 		inputToModel = np.reshape(inputToModel, (4,10,10)) 
-		return torch.tensor(np.array([inputToModel]))
+		return np.array([inputToModel])
 
 class Policy_head(nn.Module):
 	def __init__(self):
@@ -60,7 +62,7 @@ class Policy_head(nn.Module):
 		self.bn = nn.BatchNorm2d(nb_filters_policy_head)
 		self.relu = nn.ReLU(inplace=True)
 		self.fc = nn.Linear(in_features=nb_filters_policy_head * map_size[0] * map_size[1], 
-							out_features=map_size[0] * map_size[1] * 4,
+							out_features=570, # << out size here
 							bias=True)
 
 

@@ -1,10 +1,14 @@
 # %matplotlib inline
+from numba import jit, cuda
 
 import numpy as np
 import random
 
+import torch
+import torch.nn as nn
+
 import MCTS as mc
-from game import normal_move_df
+from game import king_move_df
 from loss import softmax_cross_entropy_with_logits
 
 import config
@@ -18,6 +22,8 @@ import pylab as pl
 from draughts1 import *
 import pandas as pd
 
+
+# @jit(target_backend='cuda') 
 def get_normal_move_id(action,pos,move_df):
     move = print_move(action,pos)
     if move_is_capture(action,pos):
@@ -28,16 +34,31 @@ def get_normal_move_id(action,pos,move_df):
     from_ = int(pos_str[0])
     to_ = int(pos_str[1])
 
-    print(from_,to_)
-    move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+    # print(from_,to_)
+    # display_position(pos)
+
+    if not pos.is_white_to_move():
+        from_ = 51 - from_
+        to_ = 51 - to_
+
+    try:
+        move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+    except:
+        print('ERR ', from_, to_)
+        move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
     
     return move_id
 
+# @jit(target_backend='cuda') 
 def get_normal_move(move_id,pos,move_df):
     mv = move_df[move_df['move_id']==move_id]
     from_ = mv['from'].iloc[0]
     to_ = mv['to'].iloc[0]
     
+    if not pos.is_white_to_move():
+        from_ = 51 - from_
+        to_ = 51 - to_
+
     move_str = str(from_)+'-'+str(to_)
     
     return parse_move(move_str,pos)
@@ -118,17 +139,18 @@ class Agent():
 
 	
 	def simulate(self):
-		print('simulate')
-		lg.logger_mcts.info('ROOT NODE...%s', self.mcts.root.state.id)
-		self.mcts.root.state.render(lg.logger_mcts)
-		lg.logger_mcts.info('CURRENT PLAYER...%d', self.mcts.root.state.playerTurn)
+		# print('simulate')
+		# lg.logger_mcts.info('ROOT NODE...%s', self.mcts.root.state.id)
+		# self.mcts.root.state.render(lg.logger_mcts)
+		# lg.logger_mcts.info('CURRENT PLAYER...%d', self.mcts.root.state.playerTurn)
 
 		##### MOVE THE LEAF NODE
 		leaf, value, done, breadcrumbs = self.mcts.moveToLeaf()
-		leaf.state.render(lg.logger_mcts)
+		# leaf.state.render(lg.logger_mcts)
 
 		##### EVALUATE THE LEAF NODE
 		value, breadcrumbs = self.evaluateLeaf(leaf, value, done, breadcrumbs)
+
 
 		##### BACKFILL THE VALUE THROUGH THE TREE
 		self.mcts.backFill(leaf, value, breadcrumbs)
@@ -141,6 +163,7 @@ class Agent():
 		else:
 			self.changeRootMCTS(state)
 
+
 		#### run the simulation
 		for sim in range(self.MCTSsimulations):
 			lg.logger_mcts.info('***************************')
@@ -149,31 +172,36 @@ class Agent():
 			self.simulate()
 
 		#### get action values
+
 		pi, values = self.getAV(1)
 
 		####pick the action
 		action, value = self.chooseAction(pi, values, tau, state)
 
 		nextState, _, _ = state.takeAction(action)
-
+		
+		# print('player: ',state.playerTurn,' move: ',print_move(action,state.board),' value: ',value)
+		# display_position(nextState.board)
 		NN_value = -self.get_preds(nextState)[0]
 
-		lg.logger_mcts.info('ACTION VALUES...%s', pi)
-		lg.logger_mcts.info('CHOSEN ACTION...%d', action)
-		lg.logger_mcts.info('MCTS PERCEIVED VALUE...%f', value)
-		lg.logger_mcts.info('NN PERCEIVED VALUE...%f', NN_value)
+		# lg.logger_mcts.info('ACTION VALUES...%s', pi)
+		# lg.logger_mcts.info('CHOSEN ACTION...%d', action)
+		# lg.logger_mcts.info('MCTS PERCEIVED VALUE...%f', value)
+		# lg.logger_mcts.info('NN PERCEIVED VALUE...%f', NN_value)
 
 		return (action, pi, value, NN_value)
 
 
 	def get_preds(self, state):
 		#predict the leaf
-		inputToModel = self.model.convertToModelInput(state)
+		inp = self.model.convertToModelInput(state)
+		inputToModel = torch.tensor(np.array(inp,dtype=np.float64))
 
 		# preds = self.model.predict(inputToModel)
 		preds = self.model(inputToModel.float())
-		value_array = preds[0]
-		logits_array = preds[1]
+		value_array = preds[0].detach().numpy()
+		logits_array = preds[1].detach().numpy()
+		# print('vp: ',value_array,logits_array)
 		value = value_array[0]
 
 		logits = logits_array[0]
@@ -181,17 +209,22 @@ class Agent():
 		allowedActions = state.allowedActions
 
 		move_ids = []
-
+		# print('get preds aa: ',len(allowedActions))
 		for move in allowedActions:
-			move_id = get_normal_move_id(move,state.board,normal_move_df)
+			# move_id = get_normal_move_id(move,state.board,normal_move_df)
+			move_id = get_normal_move_id(move,state.board,king_move_df)
 			move_ids.append(move_id)
 
 		mask = np.ones(logits.shape,dtype=bool)
-		mask[move_ids] = False
+		try:
+			mask[move_ids] = False
+		except:
+			print(len(mask),move_ids)
+			mask[move_ids] = False
 		logits[mask] = -100
 
 		#SOFTMAX
-		odds = np.exp(logits.detach().numpy())
+		odds = np.exp(logits)
 		probs = odds / np.sum(odds) ###put this just before the for?
 
 		return ((value, probs, allowedActions, move_ids))
@@ -199,42 +232,49 @@ class Agent():
 
 	def evaluateLeaf(self, leaf, value, done, breadcrumbs):
 
-		lg.logger_mcts.info('------EVALUATING LEAF------')
+		# lg.logger_mcts.info('------EVALUATING LEAF------')
 
 		if done == 0:
-			poss = leaf.state.board
-			if leaf.state.playerTurn==-1:
-				poss = poss.flip()
-			display_position(poss)
+			# poss = leaf.state.board
+			# if leaf.state.playerTurn==-1:
+			# 	poss = poss.flip()
+			# display_position(poss)
 			value, probs, allowedActions, move_ids = self.get_preds(leaf.state)
-			lg.logger_mcts.info('PREDICTED VALUE FOR %d: %f', leaf.state.playerTurn, value)
+			# lg.logger_mcts.info('PREDICTED VALUE FOR %d: %f', leaf.state.playerTurn, value)
+			# print('b2 val ',value,'len probs',len(probs),'len aa ',len(allowedActions))
 
 			probs = probs[move_ids]
-
+			# print('eval leaf aa: ', len(allowedActions))
 			for idx, action in enumerate(allowedActions):
+				# print('eval move: ', print_move(action,leaf.state.board))
 				newState, _, _ = leaf.state.takeAction(action)
 				if newState.id not in self.mcts.tree:
+					# print('add node')
 					node = mc.Node(newState)
 					# print('add ',node.id)
 					self.mcts.addNode(node)
 					# lg.logger_mcts.info('added node...%s...p = %f', node.id, probs[idx])
 				else:
+					# print('set node')
 					node = self.mcts.tree[newState.id]
-					lg.logger_mcts.info('existing node...%s...', node.id)
+					# lg.logger_mcts.info('existing node...%s...', node.id)
 
-				if leaf.state.board.is_capture():
-					newEdge = mc.Edge(leaf, node, 1/len(allowedActions), action)
-					move_id = -1
-				else:
-					newEdge = mc.Edge(leaf, node, probs[idx], action)
-					# move_id = get_move_id(action,leaf.state.board,move_df)
-					move_id = get_normal_move_id(action,leaf.state.board,normal_move_df)
+				# if leaf.state.board.is_capture():
+				# 	newEdge = mc.Edge(leaf, node, 1/len(allowedActions), action)
+				# 	move_id = -1
+				# else:
+				# print('newedge')
+
+				newEdge = mc.Edge(leaf, node, probs[idx], action)
+				# move_id = get_move_id(action,leaf.state.board,move_df)
+				# move_id = get_normal_move_id(action,leaf.state.board,normal_move_df)
+				move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
 				# print('move_id',move_id)
-
+				# print('done')
 				leaf.edges.append((action, move_id, newEdge))
 				
-		else:
-			lg.logger_mcts.info('GAME VALUE FOR %d: %f', leaf.playerTurn, value)
+		# else:
+		# 	lg.logger_mcts.info('GAME VALUE FOR %d: %f', leaf.playerTurn, value)
 
 		return ((value, breadcrumbs))
 
@@ -263,7 +303,9 @@ class Agent():
 
 		value = values[action]
 
-		action_move = get_normal_move(action,state.board,normal_move_df)
+		# print('av: ',action, value)
+		# action_move = get_normal_move(action,state.board,normal_move_df)
+		action_move = get_normal_move(action,state.board,king_move_df)
 		# mdf = move_df[move_df['index']==action]
 		# xx = 'x' if state.board.is_capture() else '-'
 		# start = mdf['start'].iloc[0]
@@ -284,30 +326,39 @@ class Agent():
 		for i in range(config.TRAINING_LOOPS):
 			minibatch = random.sample(ltmemory, min(config.BATCH_SIZE, len(ltmemory)))
 
-			training_states = np.array([self.model.convertToModelInput(row['state']) for row in minibatch])
+			self.model.train()
+			training_states = torch.from_numpy(np.fromiter((self.model.convertToModelInput(row['state']) for row in minibatch), float))
+			# training_states = torch.tensor(self.model.convertToModelInput(row['state']) for row in minibatch)
 			training_targets = {'value_head': np.array([row['value'] for row in minibatch])
 								, 'policy_head': np.array([row['AV'] for row in minibatch])} 
 
-			fit = self.model.fit(training_states, training_targets, epochs=config.EPOCHS, verbose=1, validation_split=0, batch_size = 32)
-			lg.logger_mcts.info('NEW LOSS %s', fit.history)
+			 
+			mse = torch.nn.MSELoss()
+			value, policy = self.model(training_states)
 
-			self.train_overall_loss.append(round(fit.history['loss'][config.EPOCHS - 1],4))
-			self.train_value_loss.append(round(fit.history['value_head_loss'][config.EPOCHS - 1],4)) 
-			self.train_policy_loss.append(round(fit.history['policy_head_loss'][config.EPOCHS - 1],4)) 
+			loss = mse(value, training_targets['value_head']) + nn.CrossEntropyLoss(policy, training_targets['policy_head'])
+			loss.backward()
 
-		plt.plot(self.train_overall_loss, 'k')
-		plt.plot(self.train_value_loss, 'k:')
-		plt.plot(self.train_policy_loss, 'k--')
+			# fit = self.model.fit(training_states, training_targets, epochs=config.EPOCHS, verbose=1, validation_split=0, batch_size = 32)
+			# lg.logger_mcts.info('NEW LOSS %s', fit.history)
 
-		plt.legend(['train_overall_loss', 'train_value_loss', 'train_policy_loss'], loc='lower left')
+			# self.train_overall_loss.append(round(fit.history['loss'][config.EPOCHS - 1],4))
+			# self.train_value_loss.append(round(fit.history['value_head_loss'][config.EPOCHS - 1],4)) 
+			# self.train_policy_loss.append(round(fit.history['policy_head_loss'][config.EPOCHS - 1],4)) 
 
-		display.clear_output(wait=True)
-		display.display(pl.gcf())
-		pl.gcf().clear()
-		time.sleep(1.0)
+		# plt.plot(self.train_overall_loss, 'k')
+		# plt.plot(self.train_value_loss, 'k:')
+		# plt.plot(self.train_policy_loss, 'k--')
 
-		print('\n')
-		self.model.printWeightAverages()
+		# plt.legend(['train_overall_loss', 'train_value_loss', 'train_policy_loss'], loc='lower left')
+
+		# display.clear_output(wait=True)
+		# display.display(pl.gcf())
+		# pl.gcf().clear()
+		# time.sleep(1.0)
+
+		# print('\n')
+		# self.model.printWeightAverages()
 
 	def predict(self, inputToModel):
 		preds = self.model.predict(inputToModel)
@@ -315,11 +366,11 @@ class Agent():
 
 	def buildMCTS(self, state):
 		lg.logger_mcts.info('****** BUILDING NEW MCTS TREE FOR AGENT %s ******', self.name)
-		print('build ', state.id)
+		# print('build ', state.id)
 		self.root = mc.Node(state)
 		self.mcts = mc.MCTS(self.root, self.cpuct)
 
 	def changeRootMCTS(self, state):
-		print('change ', state.id)
+		# print('change ', state.id)
 		lg.logger_mcts.info('****** CHANGING ROOT OF MCTS TREE TO %s FOR AGENT %s ******', state.id, self.name)
 		self.mcts.root = self.mcts.tree[state.id]
