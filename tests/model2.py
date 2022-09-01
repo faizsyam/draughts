@@ -18,6 +18,7 @@ class CNN_Net(nn.Module):
 
 
 	def forward(self, x, is_capture):
+		# x = x.type(torch.DoubleTensor)
 		out = self.conv_block(x)
 		out = self.residual_blocks(out)
 		
@@ -50,9 +51,8 @@ class CNN_Net(nn.Module):
 		self.logger.info(mess)
 		print(mess)
 
-	def convertToModelInput(self,state):
-		inputToModel =  state.binary #np.append(state.binary, [(state.playerTurn + 1)/2] * self.input_dim[1] * self.input_dim[2])
-		inputToModel = np.reshape(inputToModel, (4,10,10)) 
+	def convertToModelInput(self,binary):
+		inputToModel = np.reshape(binary, (4,10,10)) 
 		return np.array([inputToModel])
 
 class Policy_head(nn.Module):

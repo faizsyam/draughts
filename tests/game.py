@@ -158,7 +158,9 @@ class GameState():
 		for i,c in enumerate(['o','x','O','X']):
 			idx = np.where(np.array(text)==c)[0]
 			board[idx+50*i]=1
-		return ''.join(map(str,board))
+		result = ''.join(map(str,board))
+		# print(np.array([*result[:-1]]))
+		return result
 
 		# position = pos_to_numpy1(self.board)
 		# return ''.join(map(str,position))

@@ -229,7 +229,7 @@ class Agent():
 			probs = np.array(probs)
 			return ((value, probs, allowedActions, move_ids))
 		else:
-			inputToModel = self.model.convertToModelInput(state)
+			inputToModel = self.model.convertToModelInput(state.binary)
 			inputToModel = torch.tensor(np.array(inputToModel,dtype=np.float64))
 
 			# preds = self.model.predict(inputToModel)
@@ -348,24 +348,94 @@ class Agent():
 
 		return action_move, value
 
+	def convertIDToPos(self, board_id):
+		text = '.'*50
+		idd = np.array([*board_id])
+		idx = np.where(np.array(idd)=='1')[0]
+		# print(idx)
+		chrs = ['o','x','O','X']
+		for i in idx:
+			index = i%50
+			text = text[:index] + chrs[int(i/50)] + text[index + 1:]
+		text += 'W'
+		pos = parse_position(text)
+		return pos
+
+	def convertIDToModelInput(self, board_id):
+		# print('.',end='')
+		idn = np.array([*board_id])
+		idn = idn.astype(int)
+		idn = np.insert(idn,ids,0).reshape(4,10,10)
+		return np.array(idn)
+
 	def replay(self, ltmemory):
 		lg.logger_mcts.info('******RETRAINING MODEL******')
 
 
 		for i in range(config.TRAINING_LOOPS):
+			print('loop',i)
 			minibatch = random.sample(ltmemory, min(config.BATCH_SIZE, len(ltmemory)))
 
 			self.model.train()
-			training_states = torch.from_numpy(np.fromiter((self.model.convertToModelInput(row['state']) for row in minibatch), float))
+			training_states_ncap = []
+			training_states_cap = []
+			training_value_ncap = []
+			training_value_cap = []
+			training_policy_ncap = []
+			training_policy_cap = []
+			for row in minibatch:
+				state = self.convertIDToModelInput(row['id'])
+				value = row['value']
+				policy = row['AV']
+				if row['is_capture']:
+					training_states_cap.append(state)
+					training_value_cap.append(value)
+					training_policy_cap.append(policy)
+				else:
+					training_states_ncap.append(state)
+					training_value_ncap.append(value)
+					training_policy_ncap.append(policy)
+
+			training_states_ncap = np.array(training_states_ncap,dtype=np.float64)
+			training_states_cap = np.array(training_states_cap,dtype=np.float)
+
+			training_value_ncap = np.array(training_value_ncap,dtype=np.float64)
+			training_value_cap = np.array(training_value_cap,dtype=np.float64)
+
+			training_policy_ncap = np.array(training_policy_ncap,dtype=np.float64)
+			training_policy_cap = np.array(training_policy_cap,dtype=np.float64)
+
+			training_states_ncap = torch.tensor(training_states_ncap,dtype=torch.float)
+			training_states_cap = torch.tensor(training_states_cap,dtype=torch.float)
+
+			training_value_ncap = torch.tensor(training_value_ncap,dtype=torch.float)
+			training_value_ncap = training_value_ncap[:,None]
+			training_value_cap = torch.tensor(training_value_cap,dtype=torch.float)
+			training_value_cap = training_value_cap[:,None]
+
+			training_policy_ncap = torch.tensor(training_policy_ncap,dtype=torch.float)
+			training_policy_cap = torch.tensor(training_policy_cap,dtype=torch.float)
+
+
+
+			# print(training_states_ncap.size())
+			# print(training_states_cap.size())
+			# print('')
+			# print(training_states)
+			# training_states = training_states.astype(np.float)
+			# training_states = torch.from_numpy(training_states)
 			# training_states = torch.tensor(self.model.convertToModelInput(row['state']) for row in minibatch)
-			training_targets = {'value_head': np.array([row['value'] for row in minibatch])
-								, 'policy_head': np.array([row['AV'] for row in minibatch])} 
+			
+			# training_targets = {'value_head': np.array([row['value'] for row in minibatch])
+			# 					, 'policy_head': np.array([row['AV'] for row in minibatch])} 
 
 			 
-			mse = torch.nn.MSELoss()
-			value, policy = self.model(training_states)
+			pred_value, pred_policy = self.model(training_states_ncap,False)
 
-			loss = mse(value, training_targets['value_head']) + nn.CrossEntropyLoss(policy, training_targets['policy_head'])
+			mse = nn.MSELoss()
+			cet = nn.CrossEntropyLoss()
+			# loss = cet(pred_policy, training_policy_ncap)
+			loss = mse(pred_value, training_value_ncap) + cet(pred_policy, training_policy_ncap)
 			loss.backward()
 
 			# fit = self.model.fit(training_states, training_targets, epochs=config.EPOCHS, verbose=1, validation_split=0, batch_size = 32)
@@ -403,3 +473,10 @@ class Agent():
 		# print('change ', state.id)
 		# lg.logger_mcts.info('****** CHANGING ROOT OF MCTS TREE TO %s FOR AGENT %s ******', state.id, self.name)
 		self.mcts.root = self.mcts.tree[state.id]
+
+ids = []
+for i in range(201):
+    if i%10!=5:
+        ids.append(i)
+        if (i%10==0) & (i!=0) & (i!=200):
+            ids.append(i)
