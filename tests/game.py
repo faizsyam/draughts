@@ -8,6 +8,7 @@ import random
 
 normal_move_df = pd.read_csv('normal_moves.csv')
 king_move_df = pd.read_csv('king_moves.csv')
+capture_move_df = pd.read_csv('capture_moves.csv')
 
 class Game:
 
@@ -26,7 +27,7 @@ class Game:
 		return self.gameState
 
 	def step(self, action):
-		next_state, value, done = self.gameState.takeAction(action)
+		next_state, value, done, _ = self.gameState.takeAction(action)
 		self.gameState = next_state
 		# self.currentPlayer = -self.currentPlayer
 		info = None
@@ -34,7 +35,7 @@ class Game:
 
 	def identities(self, state, actionValues):
 		# FIX IDENTITIES
-		identities = [(state.binary,state.playerTurn,actionValues)]
+		identities = [(state.id,state.playerTurn,state.board.is_capture(),actionValues)]
 		
 		# bb = state.board
 		# bb.flip()
@@ -147,8 +148,20 @@ class GameState():
 
 	def _convertStateToId(self):
 		
-		position = pos_to_numpy1(self.board)
-		return ''.join(map(str,position))
+		board = np.array(np.zeros(200),dtype=int)
+		ppos = self.board
+		if not ppos.is_white_to_move():
+			ppos.flip()
+		text = print_position(ppos, False, True)
+		text = np.array([*text[:-1]])
+
+		for i,c in enumerate(['o','x','O','X']):
+			idx = np.where(np.array(text)==c)[0]
+			board[idx+50*i]=1
+		return ''.join(map(str,board))
+
+		# position = pos_to_numpy1(self.board)
+		# return ''.join(map(str,position))
 
 		text = print_position(self.board, False, True)
 
@@ -201,16 +214,21 @@ class GameState():
 		# if not self.board.is_white_to_move():
 			# board.flip()
 		newpos = play_forced_moves(board.succ(action))
-		count = 0
+
+		# if newpos.is_capture():
+		# 	print('YES')
+		# else:
+		# 	print('NO')
+		# count = 0
 		# print('in2')
-		while newpos.is_capture():
-			count += 1
-			moves = generate_moves(newpos)
-			try:
-				newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
-			except:
-				display_position(newpos)
-				newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
+		# while newpos.is_capture():
+		# 	count += 1
+		# 	moves = generate_moves(newpos)
+		# 	try:
+		# 		newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
+		# 	except:
+		# 		display_position(newpos)
+		# 		newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
 
 			
 		# if not self.board.is_white_to_move():
@@ -233,7 +251,7 @@ class GameState():
 			# newState.playerTurn = -newState.playerTurn
 			done = 1
 
-		return (newState, value, done) 
+		return (newState, value, done, newpos.is_capture()) 
 
 
 	def render(self, logger):		

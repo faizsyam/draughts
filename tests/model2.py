@@ -13,15 +13,21 @@ class CNN_Net(nn.Module):
 		self.conv_block = Conv_block()
 		self.residual_blocks = self.__make_residual_blocks()
 		self.value_head = Value_head()
+		self.value_capture_head = Value_head()
 		self.policy_head = Policy_head()
 
 
-	def forward(self, x):
+	def forward(self, x, is_capture):
 		out = self.conv_block(x)
 		out = self.residual_blocks(out)
-		value = self.value_head(out)
-		policy = self.policy_head(out)
-		return value, policy
+		
+		if is_capture:
+			value = self.value_capture_head(out)
+			return value
+		else:
+			value = self.value_head(out)
+			policy = self.policy_head(out)
+			return value, policy
 
 	# def train():
 	# 	return self.m

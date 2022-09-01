@@ -81,6 +81,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
         # env.gameState.render(logger)
 
         while done == 0:
+            # print('.',end='')
             # print('turn: ', turn,' player: ',state.playerTurn)
             turn = turn + 1
     
@@ -151,5 +152,6 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
                 pts = state.score
                 points[players[state.playerTurn]['name']].append(pts[0])
                 points[players[-state.playerTurn]['name']].append(pts[1])
+        # print('')
 
     return (scores, memory, points, sp_scores)

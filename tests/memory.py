@@ -16,12 +16,14 @@ class Memory:
 				# , 'state': r[0]
 				'id': r[0]
 				, 'playerTurn': r[1]
-				, 'AV': r[2]
+				, 'is_capture': r[2]
+				, 'AV': r[3]
 				})
 
 	def commit_ltmemory(self):
 		for i in self.stmemory:
 			self.ltmemory.append(i)
+		# print('lenlt ',len(self.ltmemory))	
 		self.clear_stmemory()
 
 	def clear_stmemory(self):

@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import config
+from numba import jit, cuda
 
 from utils import setup_logger
 import loggers as lg
@@ -34,8 +35,7 @@ class Edge():
 					'Q': 0,
 					'P': prior,
 				}
-				
-
+		
 class MCTS():
 
 	def __init__(self, root, cpuct):
@@ -49,17 +49,17 @@ class MCTS():
 
 	def moveToLeaf(self):
 		
-		lg.logger_mcts.info('------MOVING TO LEAF------')
+		# lg.logger_mcts.info('------MOVING TO LEAF------')
 
 		breadcrumbs = []
 		currentNode = self.root
 
 		done = 0
 		value = 0
-
+		
 		while not currentNode.isLeaf():
 
-			lg.logger_mcts.info('PLAYER TURN...%d', currentNode.state.playerTurn)
+			# lg.logger_mcts.info('PLAYER TURN...%d', currentNode.state.playerTurn)
 		
 			maxQU = -99999
 
@@ -90,16 +90,15 @@ class MCTS():
 					simulationAction = action
 					simulationEdge = edge
 
-			lg.logger_mcts.info('action with highest Q + U...%d', simulationAction)
+			# lg.logger_mcts.info('action with highest Q + U...%d', simulationAction)
 
-			newState, value, done = currentNode.state.takeAction(simulationAction) #the value of the newState from the POV of the new playerTurn
+			newState, value, done, _ = currentNode.state.takeAction(simulationAction) #the value of the newState from the POV of the new playerTurn
 			currentNode = simulationEdge.outNode
 			breadcrumbs.append(simulationEdge)
 
 		# lg.logger_mcts.info('DONE...%d', done)
 
 		return currentNode, value, done, breadcrumbs
-
 
 
 	def backFill(self, leaf, value, breadcrumbs):
@@ -129,7 +128,7 @@ class MCTS():
 			# 	)
 
 			# edge.outNode.state.render(lg.logger_mcts)
-
+			
 	def addNode(self, node):
 		self.tree[node.id] = node
 

@@ -2,13 +2,16 @@
 from numba import jit, cuda
 
 import numpy as np
+import numpy
 import random
 
 import torch
 import torch.nn as nn
 
+from torch.utils.data import TensorDataset, DataLoader
+
 import MCTS as mc
-from game import king_move_df
+from game import king_move_df, capture_move_df
 from loss import softmax_cross_entropy_with_logits
 
 import config
@@ -22,8 +25,8 @@ import pylab as pl
 from draughts1 import *
 import pandas as pd
 
+from timeit import default_timer as timer   
 
-# @jit(target_backend='cuda') 
 def get_normal_move_id(action,pos,move_df):
     move = print_move(action,pos)
     if move_is_capture(action,pos):
@@ -49,7 +52,6 @@ def get_normal_move_id(action,pos,move_df):
     
     return move_id
 
-# @jit(target_backend='cuda') 
 def get_normal_move(move_id,pos,move_df):
     mv = move_df[move_df['move_id']==move_id]
     from_ = mv['from'].iloc[0]
@@ -166,24 +168,25 @@ class Agent():
 
 		#### run the simulation
 		for sim in range(self.MCTSsimulations):
-			lg.logger_mcts.info('***************************')
-			lg.logger_mcts.info('****** SIMULATION %d ******', sim + 1)
-			lg.logger_mcts.info('***************************')
+			# lg.logger_mcts.info('***************************')
+			# lg.logger_mcts.info('****** SIMULATION %d ******', sim + 1)
+			# lg.logger_mcts.info('***************************')
 			self.simulate()
 
 		#### get action values
 
-		pi, values = self.getAV(1)
+		pi, values = self.getAV(1,state.board.is_capture())
 
 		####pick the action
 		action, value = self.chooseAction(pi, values, tau, state)
 
-		nextState, _, _ = state.takeAction(action)
+		nextState, _, _, is_capture = state.takeAction(action)
 		
 		# print('player: ',state.playerTurn,' move: ',print_move(action,state.board),' value: ',value)
 		# display_position(nextState.board)
-		NN_value = -self.get_preds(nextState)[0]
-
+		# print(is_capture)
+		NN_value = -self.get_preds(nextState, is_capture)[0]
+		
 		# lg.logger_mcts.info('ACTION VALUES...%s', pi)
 		# lg.logger_mcts.info('CHOSEN ACTION...%d', action)
 		# lg.logger_mcts.info('MCTS PERCEIVED VALUE...%f', value)
@@ -192,19 +195,9 @@ class Agent():
 		return (action, pi, value, NN_value)
 
 
-	def get_preds(self, state):
+	def get_preds(self, state, is_capture):
 		#predict the leaf
-		inp = self.model.convertToModelInput(state)
-		inputToModel = torch.tensor(np.array(inp,dtype=np.float64))
-
-		# preds = self.model.predict(inputToModel)
-		preds = self.model(inputToModel.float())
-		value_array = preds[0].detach().numpy()
-		logits_array = preds[1].detach().numpy()
-		# print('vp: ',value_array,logits_array)
-		value = value_array[0]
-
-		logits = logits_array[0]
+		
 
 		allowedActions = state.allowedActions
 
@@ -212,22 +205,50 @@ class Agent():
 		# print('get preds aa: ',len(allowedActions))
 		for move in allowedActions:
 			# move_id = get_normal_move_id(move,state.board,normal_move_df)
-			move_id = get_normal_move_id(move,state.board,king_move_df)
+			if is_capture:
+				move_id = get_normal_move_id(move,state.board,capture_move_df)
+			else:
+				move_id = get_normal_move_id(move,state.board,king_move_df)
 			move_ids.append(move_id)
 
-		mask = np.ones(logits.shape,dtype=bool)
-		try:
-			mask[move_ids] = False
-		except:
-			print(len(mask),move_ids)
-			mask[move_ids] = False
-		logits[mask] = -100
+		if is_capture:
+			probs = list(np.zeros(2500,dtype=int))
+			for action in allowedActions:
+				newpos = state.board.succ(action)
+				inputToModel = pos_to_numpy1(newpos)
+				inputToModel = np.reshape(inputToModel, (4,10,10)) 
+				inputToModel = torch.tensor(np.array([inputToModel],dtype=np.float64))
+				
+				value = self.model(inputToModel.float(),is_capture)
+				value = list(value.detach().numpy())[0][0]
+				
+				move_id = get_normal_move_id(action,state.board,capture_move_df)
+				probs[move_id] = value
 
-		#SOFTMAX
-		odds = np.exp(logits)
-		probs = odds / np.sum(odds) ###put this just before the for?
+			value = np.max(probs)
+			probs = np.array(probs)
+			return ((value, probs, allowedActions, move_ids))
+		else:
+			inputToModel = self.model.convertToModelInput(state)
+			inputToModel = torch.tensor(np.array(inputToModel,dtype=np.float64))
 
-		return ((value, probs, allowedActions, move_ids))
+			# preds = self.model.predict(inputToModel)
+			preds = self.model(inputToModel.float(),is_capture)
+			value_array = preds[0].detach().numpy()
+			logits_array = preds[1].detach().numpy()
+			# print('vp: ',value_array,logits_array)
+			value = value_array[0]
+
+			logits = logits_array[0]
+			mask = np.ones(logits.shape,dtype=bool)
+			mask[move_ids] = False
+			logits[mask] = -100
+
+			#SOFTMAX
+			odds = np.exp(logits)
+			probs = odds / np.sum(odds) ###put this just before the for?
+
+			return ((value, probs, allowedActions, move_ids))
 
 
 	def evaluateLeaf(self, leaf, value, done, breadcrumbs):
@@ -239,23 +260,18 @@ class Agent():
 			# if leaf.state.playerTurn==-1:
 			# 	poss = poss.flip()
 			# display_position(poss)
-			value, probs, allowedActions, move_ids = self.get_preds(leaf.state)
-			# lg.logger_mcts.info('PREDICTED VALUE FOR %d: %f', leaf.state.playerTurn, value)
-			# print('b2 val ',value,'len probs',len(probs),'len aa ',len(allowedActions))
-
+			is_capture = leaf.state.board.is_capture()
+			value, probs, allowedActions, move_ids = self.get_preds(leaf.state,is_capture)
+			# print(type(probs))
 			probs = probs[move_ids]
-			# print('eval leaf aa: ', len(allowedActions))
+				
 			for idx, action in enumerate(allowedActions):
-				# print('eval move: ', print_move(action,leaf.state.board))
-				newState, _, _ = leaf.state.takeAction(action)
+				newState, _, _, _ = leaf.state.takeAction(action)
 				if newState.id not in self.mcts.tree:
-					# print('add node')
 					node = mc.Node(newState)
-					# print('add ',node.id)
 					self.mcts.addNode(node)
 					# lg.logger_mcts.info('added node...%s...p = %f', node.id, probs[idx])
 				else:
-					# print('set node')
 					node = self.mcts.tree[newState.id]
 					# lg.logger_mcts.info('existing node...%s...', node.id)
 
@@ -264,11 +280,14 @@ class Agent():
 				# 	move_id = -1
 				# else:
 				# print('newedge')
-
 				newEdge = mc.Edge(leaf, node, probs[idx], action)
 				# move_id = get_move_id(action,leaf.state.board,move_df)
 				# move_id = get_normal_move_id(action,leaf.state.board,normal_move_df)
-				move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
+				if is_capture:
+					move_id = get_normal_move_id(action,leaf.state.board,capture_move_df)
+				else:
+					move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
+
 				# print('move_id',move_id)
 				# print('done')
 				leaf.edges.append((action, move_id, newEdge))
@@ -278,12 +297,17 @@ class Agent():
 
 		return ((value, breadcrumbs))
 
-
-		
-	def getAV(self, tau):
+	def getAV(self, tau,is_capture):
 		edges = self.mcts.root.edges
-		pi = np.zeros(self.action_size, dtype=np.integer)
-		values = np.zeros(self.action_size, dtype=np.float32)
+
+		if is_capture:
+			action_size = 2500
+		else:
+			action_size = 570
+
+		pi = np.zeros(action_size, dtype=np.integer)
+		values = np.zeros(action_size, dtype=np.float32)
+		
 		
 		for action, move_id, edge in edges:
 			# print(move_id)
@@ -292,6 +316,7 @@ class Agent():
 
 		pi = pi / (np.sum(pi) * 1.0)
 		return pi, values
+
 
 	def chooseAction(self, pi, values, tau, state):
 		if tau == 0:
@@ -305,7 +330,11 @@ class Agent():
 
 		# print('av: ',action, value)
 		# action_move = get_normal_move(action,state.board,normal_move_df)
-		action_move = get_normal_move(action,state.board,king_move_df)
+		if state.board.is_capture():
+			action_move = get_normal_move(action,state.board,capture_move_df)
+		else:
+			action_move = get_normal_move(action,state.board,king_move_df)
+
 		# mdf = move_df[move_df['index']==action]
 		# xx = 'x' if state.board.is_capture() else '-'
 		# start = mdf['start'].iloc[0]
@@ -365,12 +394,12 @@ class Agent():
 		return preds
 
 	def buildMCTS(self, state):
-		lg.logger_mcts.info('****** BUILDING NEW MCTS TREE FOR AGENT %s ******', self.name)
+		# lg.logger_mcts.info('****** BUILDING NEW MCTS TREE FOR AGENT %s ******', self.name)
 		# print('build ', state.id)
 		self.root = mc.Node(state)
 		self.mcts = mc.MCTS(self.root, self.cpuct)
 
 	def changeRootMCTS(self, state):
 		# print('change ', state.id)
-		lg.logger_mcts.info('****** CHANGING ROOT OF MCTS TREE TO %s FOR AGENT %s ******', state.id, self.name)
+		# lg.logger_mcts.info('****** CHANGING ROOT OF MCTS TREE TO %s FOR AGENT %s ******', state.id, self.name)
 		self.mcts.root = self.mcts.tree[state.id]
