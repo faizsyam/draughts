@@ -123,6 +123,9 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             # CP LOSE
             # value 1: black wins -> CP=W, -1: white wins -> CP=B
 
+            # if memory==None:
+            #     print(print_move(action))
+            #     display_position(state.board)
             # print(state.playerTurn)
             # display_position(state.board)
             if done == 1: 
@@ -153,17 +156,18 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
 
                 # elif value == -1:
                 # logger.info('%s WINS!', players[-state.playerTurn]['name'])
-                scores[players[-state.playerTurn]['name']] = scores[players[-state.playerTurn]['name']] + 1
-            
-                if state.playerTurn == 1: 
-                    sp_scores['nsp'] = sp_scores['nsp'] + 1
-                else:
-                    sp_scores['sp'] = sp_scores['sp'] + 1
+                if value!=0:
+                    scores[players[-value]['name']] = scores[players[-value]['name']] + 1
+                
+                    if value == 1: 
+                        sp_scores['nsp'] = sp_scores['nsp'] + 1
+                    else:
+                        sp_scores['sp'] = sp_scores['sp'] + 1
 
-                # else:
-                #     logger.info('DRAW...')
-                #     scores['drawn'] = scores['drawn'] + 1
-                #     sp_scores['drawn'] = sp_scores['drawn'] + 1
+                else:
+                    # logger.info('DRAW...')
+                    scores['drawn'] = scores['drawn'] + 1
+                    sp_scores['drawn'] = sp_scores['drawn'] + 1
 
                 pts = state.score
                 points[players[state.playerTurn]['name']].append(pts[0])

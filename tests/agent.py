@@ -29,6 +29,9 @@ import pandas as pd
 
 from timeit import default_timer as timer   
 
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 def get_normal_move_id(action,pos,move_df):
     move = print_move(action,pos)
     if move_is_capture(action,pos):
@@ -66,8 +69,11 @@ def get_normal_move(move_id,pos,move_df):
     if not pos.is_white_to_move():
         from_ = 51 - from_
         to_ = 51 - to_
-
-    move_str = str(from_)+'-'+str(to_)
+	
+    if pos.is_capture():
+        move_str = str(from_)+'x'+str(to_)
+    else:
+        move_str = str(from_)+'-'+str(to_)
     
     return parse_move(move_str,pos)
 
@@ -225,10 +231,10 @@ class Agent():
 				newpos = state.board.succ(action)
 				inputToModel = pos_to_numpy1(newpos)
 				inputToModel = np.reshape(inputToModel, (4,10,10)) 
-				inputToModel = torch.tensor(np.array([inputToModel],dtype=np.float64))
+				inputToModel = torch.tensor(np.array([inputToModel],dtype=np.float64)).to(device)
 				
 				value = self.model(inputToModel.float(),is_capture)
-				value = list(value.detach().numpy())[0][0]
+				value = list(value.cpu().detach().numpy())[0][0]
 				
 				move_id = get_normal_move_id(action,state.board,capture_move_df)
 				probs[move_id] = value
@@ -238,12 +244,12 @@ class Agent():
 			return ((value, probs, allowedActions, move_ids))
 		else:
 			inputToModel = self.model.convertToModelInput(state.binary)
-			inputToModel = torch.tensor(np.array(inputToModel,dtype=np.float64))
+			inputToModel = torch.tensor(np.array(inputToModel,dtype=np.float64)).to(device)
 
 			# preds = self.model.predict(inputToModel)
 			preds = self.model(inputToModel.float(),is_capture)
-			value_array = preds[0].detach().numpy()
-			logits_array = preds[1].detach().numpy()
+			value_array = preds[0].cpu().detach().numpy()
+			logits_array = preds[1].cpu().detach().numpy()
 			# print('vp: ',value_array,logits_array)
 			value = value_array[0]
 
@@ -337,7 +343,11 @@ class Agent():
 	def chooseAction(self, pi, values, tau, state):
 		if tau == 0:
 			actions = np.argwhere(pi == max(pi))
-			action = random.choice(actions)[0]
+			try:
+				action = random.choice(actions)[0]
+			except:
+				print('ERR | actions: ',actions,' action: ',action)
+				action = actions[0]
 		else:
 			action_idx = np.random.multinomial(1, pi)
 			action = np.where(action_idx==1)[0][0]
@@ -479,6 +489,13 @@ class Agent():
 			training_policy_cap = torch.tensor(training_policy_cap,dtype=torch.float,requires_grad=True)
 			training_policy_cap = training_policy_cap[:,None]
 
+			self.model.to(device)
+			training_states_ncap = training_states_ncap.to(device)
+			training_states_cap = training_states_cap.to(device)
+			training_value_ncap = training_value_ncap.to(device)
+			training_value_cap = training_value_cap.to(device)
+			training_policy_ncap = training_policy_ncap.to(device)
+			training_policy_cap = training_policy_cap.to(device)
 
 			# print(training_states_ncap.size())
 			# print(training_states_cap.size())
@@ -507,7 +524,7 @@ class Agent():
 			# we need to know the groups for each index
 			
 			count = 0
-			tpc = pred_policy_cap.detach().numpy()
+			tpc = pred_policy_cap.cpu().detach().numpy()
 			pred_value_cap_max = np.zeros(len(tpc))
 			for i in group_borders:
 				for j in range(count,i):
@@ -515,7 +532,7 @@ class Agent():
 				count = i
 			pred_value_cap_max = pred_value_cap_max[:,None]
 			pred_value_cap_max = torch.tensor(pred_value_cap_max,dtype=torch.float,requires_grad=True)
-
+			pred_value_cap_max = pred_value_cap_max.to(device)
 			# Define the loss function with Classification Cross-Entropy loss and an optimizer with Adam optimizer
 			
 			# loss = cet(pred_policy, training_policy_ncap)

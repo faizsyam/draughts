@@ -40,6 +40,12 @@ class Game:
 
 	def step(self, action):
 		next_state, value, done, _ = self.gameState.takeAction(action)
+		# if(self.gameState.board.is_capture()):
+		# 	print('from')
+		# 	print(self.gameState.board)
+		# 	print(print_move(action,self.gameState.board))
+		# 	print('to')
+		# 	print(next_state.board)
 		self.gameState = next_state
 		# self.currentPlayer = -self.currentPlayer
 		info = None
@@ -248,7 +254,7 @@ class GameState():
 			# board.flip()
 		newpos = board.succ(action)
 		moves = generate_moves(newpos)
-
+		
 		count = 0
 		while (newpos.is_capture()) & (len(moves)==1):
 			count+=1
