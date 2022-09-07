@@ -553,10 +553,10 @@ class Agent():
 
 			losses.append(loss.item())
 
-			loss_val_cap.append(mse(pred_value_cap_max, training_value_cap))
-			loss_val_ncap.append(mse(pred_value_ncap, training_value_ncap))
-			loss_pol_cap.append(cet(pred_policy_cap, training_policy_cap))
-			loss_pol_ncap.append(cet(pred_policy_ncap, training_policy_ncap))
+			loss_val_cap.append(mse(pred_value_cap_max, training_value_cap).cpu().detach().numpy())
+			loss_val_ncap.append(mse(pred_value_ncap, training_value_ncap).cpu().detach().numpy())
+			loss_pol_cap.append(cet(pred_policy_cap, training_policy_cap).cpu().detach().numpy())
+			loss_pol_ncap.append(cet(pred_policy_ncap, training_policy_ncap).cpu().detach().numpy())
 			# fit = self.model.fit(training_states, training_targets, epochs=config.EPOCHS, verbose=1, validation_split=0, batch_size = 32)
 			# lg.logger_mcts.info('NEW LOSS %s', fit.history)
 
