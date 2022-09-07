@@ -3,6 +3,7 @@ import logging
 import config
 from numba import jit, cuda
 
+from draughts1 import *
 from utils import setup_logger
 import loggers as lg
 
@@ -56,9 +57,34 @@ class MCTS():
 
 		done = 0
 		value = 0
+
+		count = 0
 		
 		while not currentNode.isLeaf():
+			# print('1 ',end='')
+			if (count >= 400)&(count <= 600):
+				# cek = currentNode.state.board.white_man_count()==0 & currentNode.state.board.black_man_count()==0 & currentNode.state.board.white_king_count()>0 & currentNode.state.board.black_king_count()>0
+				print('Noonono')
+				print(currentNode.state.board.white_man_count(),end=' ')
+				print(currentNode.state.board.black_man_count(),end=' ')
+				print(currentNode.state.board.white_king_count(),end=' ')
+				print(currentNode.state.board.black_king_count(),end=' ')
+				# # display_position(currentNode.state.board)
+				# print(currentNode.state.board)
+				# # print(currentNode.state.board.is_end())
 
+				# Scan.set("variant", "normal")
+				# Scan.set("book", "false")
+				# Scan.set("book-ply", "4")
+				# Scan.set("book-margin", "4")
+				# Scan.set("ponder", "false")
+				# Scan.set("threads", "1")
+				# Scan.set("tt-size", "24")
+				# Scan.set("bb-size", "6")
+				# Scan.update()
+				# Scan.init()
+				
+				# print(EGDB.probe(currentNode.state.board))
 			# lg.logger_mcts.info('PLAYER TURN...%d', currentNode.state.playerTurn)
 		
 			maxQU = -99999
@@ -86,6 +112,7 @@ class MCTS():
 				# 	, np.round(edge.stats['W'],6), np.round(Q,6), np.round(U,6), np.round(Q+U,6))
 
 				if Q + U > maxQU:
+					# print('2 ',end='')
 					maxQU = Q + U
 					simulationAction = action
 					simulationEdge = edge
@@ -95,6 +122,8 @@ class MCTS():
 			newState, value, done, _ = currentNode.state.takeAction(simulationAction) #the value of the newState from the POV of the new playerTurn
 			currentNode = simulationEdge.outNode
 			breadcrumbs.append(simulationEdge)
+
+			count += 1
 
 		# lg.logger_mcts.info('DONE...%d', done)
 

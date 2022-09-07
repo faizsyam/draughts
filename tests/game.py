@@ -6,6 +6,18 @@ from draughts1 import *
 import pandas as pd
 import random
 
+
+Scan.set("variant", "normal")
+Scan.set("book", "false")
+Scan.set("book-ply", "4")
+Scan.set("book-margin", "4")
+Scan.set("ponder", "false")
+Scan.set("threads", "1")
+Scan.set("tt-size", "24")
+Scan.set("bb-size", "6")
+Scan.update()
+Scan.init()
+
 normal_move_df = pd.read_csv('normal_moves.csv')
 king_move_df = pd.read_csv('king_moves.csv')
 capture_move_df = pd.read_csv('capture_moves.csv')
@@ -150,8 +162,12 @@ class GameState():
 		
 		board = np.array(np.zeros(200),dtype=int)
 		ppos = self.board
+
+		wtm = True
 		if not ppos.is_white_to_move():
 			ppos.flip()
+			wtm = False
+
 		text = print_position(ppos, False, True)
 		text = np.array([*text[:-1]])
 
@@ -160,6 +176,9 @@ class GameState():
 			board[idx+50*i]=1
 		result = ''.join(map(str,board))
 		# print(np.array([*result[:-1]]))
+
+		if not wtm:
+			ppos.flip()
 		return result
 
 		# position = pos_to_numpy1(self.board)
@@ -201,6 +220,18 @@ class GameState():
 			# print('res: ',self.board.result(self.board.turn()))
 			turn = 1 if self.board.turn()==Side.White else -1
 			return (turn, turn, 1)
+		elif (self.board.white_man_count()==0) & (self.board.black_man_count()==0) & (self.board.white_king_count()>0) & (self.board.black_king_count()>0):
+			sums = self.board.white_man_count() + self.board.black_man_count() + self.board.white_king_count() + self.board.black_king_count()
+			if sums<=6:
+				probe = EGDB.probe(self.board)
+				# print('pprobe',probe,'turn',self.board.is_white_to_move())
+				if probe==0:
+					value = 0
+				elif probe==1:
+					value = 1 if self.board.turn()==Side.White else -1
+				else:
+					value = -1 if self.board.turn()==Side.White else 1
+				return (value,value,1)
 			# return (self.playerTurn, self.playerTurn, 1)
 		return (0, 0, 0)
 
@@ -215,7 +246,14 @@ class GameState():
 		board = self.board
 		# if not self.board.is_white_to_move():
 			# board.flip()
-		newpos = play_forced_moves(board.succ(action))
+		newpos = board.succ(action)
+		moves = generate_moves(newpos)
+
+		count = 0
+		while (newpos.is_capture()) & (len(moves)==1):
+			count+=1
+			newpos = play_forced_moves(newpos)
+			moves = generate_moves(newpos)
 
 		# if newpos.is_capture():
 		# 	print('YES')
@@ -253,6 +291,27 @@ class GameState():
 			# newState.playerTurn = -newState.playerTurn
 			done = 1
 
+		if (newpos.white_king_count()>0) & (newpos.black_king_count()>0):
+			sums = newpos.white_man_count() + newpos.black_man_count() + newpos.white_king_count() + newpos.black_king_count()
+			if sums<=6:
+				probe = EGDB.probe(newpos)
+				# print('pprobe',probe,'turn',newpos.is_white_to_move())
+				if probe==0:
+					value = 0
+				elif probe==1:
+					value = 1 if newpos.turn()==Side.White else -1
+				else:
+					value = -1 if newpos.turn()==Side.White else 1
+				done = 1
+
+
+		# if (newpos.white_king_count()>0) & (newpos.black_king_count()>0):
+		# 	print('gotya')
+		# 	print(newpos)
+			
+		# 	if newpos.white_man_count() + newpos.black_man_count() + newpos.white_king_count() + newpos.black_king_count()<=6:
+		# 		print('probe',EGDB.probe(newpos))
+			
 		return (newState, value, done, newpos.is_capture()) 
 
 

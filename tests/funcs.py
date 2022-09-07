@@ -81,6 +81,13 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
         # env.gameState.render(logger)
 
         while done == 0:
+            # try:
+            #     tboard = state.board
+            #     if state.playerTurn==-1:
+            #         tboard.flip()
+            #     display_position(tboard)
+            # except:
+            #     print(state.board)
             # print('.',end='')
             # print('turn: ', turn,' player: ',state.playerTurn)
             turn = turn + 1
@@ -93,6 +100,11 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
 
             if memory != None:
                 ####Commit the move to memory
+                # if state.board.is_capture():
+                    # ones=np.where(pi == 1)[0]
+                    # print(pi.shape,ones)
+                    # if len(ones)==0:
+                    # print(state.board)
                 memory.commit_stmemory(env.identities, state, pi)
 
 
@@ -110,17 +122,21 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             
             # CP LOSE
             # value 1: black wins -> CP=W, -1: white wins -> CP=B
-            # display_position(state.board)
 
+            # print(state.playerTurn)
+            # display_position(state.board)
             if done == 1: 
                 # print('cp ',state.playerTurn,'val ',value)
+                # print(state.board)
                 # print('res: ',state.board.result(state.board.turn()),' val: ',value)
                 # print('DONE. Winner: ',state.playerTurn if value==1 else -state.playerTurn)
                 # print('turn ',state.playerTurn,'val ',value,'res ',state.board.result(state.board.turn()),'board turn ',state.board.turn())
                 if memory != None:
                     #### If the game is finished, assign the values correctly to the game moves
                     for move in memory.stmemory:
-                        if move['playerTurn'] == value: #state.playerTurn:
+                        if value==0:
+                            move['value'] = 0
+                        elif move['playerTurn'] == value: #state.playerTurn:
                             move['value'] = -1 #value
                         else:
                             move['value'] = 1 #-value
