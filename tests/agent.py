@@ -425,6 +425,11 @@ class Agent():
 		optimizer = Adam(self.model.parameters(), lr=0.001, weight_decay=0.0001)
 		mse = nn.MSELoss()
 		cet = nn.CrossEntropyLoss()
+		
+		loss_val_cap = []
+		loss_val_ncap = []
+		loss_pol_cap = []
+		loss_pol_ncap = []
 
 		for i in range(config.TRAINING_LOOPS):
 			print(i,end=' ')
@@ -547,6 +552,11 @@ class Agent():
 			optimizer.step()
 
 			losses.append(loss.item())
+
+			loss_val_cap.append(mse(pred_value_cap_max, training_value_cap))
+			loss_val_ncap.append(mse(pred_value_ncap, training_value_ncap))
+			loss_pol_cap.append(cet(pred_policy_cap, training_policy_cap))
+			loss_pol_ncap.append(cet(pred_policy_ncap, training_policy_ncap))
 			# fit = self.model.fit(training_states, training_targets, epochs=config.EPOCHS, verbose=1, validation_split=0, batch_size = 32)
 			# lg.logger_mcts.info('NEW LOSS %s', fit.history)
 
@@ -555,6 +565,12 @@ class Agent():
 			# self.train_policy_loss.append(round(fit.history['policy_head_loss'][config.EPOCHS - 1],4)) 
 		print('')
 		print(losses)
+
+		loss_val_cap = np.mean(np.array(loss_val_cap))
+		loss_val_ncap = np.mean(np.array(loss_val_ncap))
+		loss_pol_cap = np.mean(np.array(loss_pol_cap))
+		loss_pol_ncap = np.mean(np.array(loss_pol_ncap))
+		print([loss_val_cap,loss_val_ncap,loss_pol_cap,loss_pol_ncap])
 		# plt.plot(self.train_overall_loss, 'k')
 		# plt.plot(self.train_value_loss, 'k:')
 		# plt.plot(self.train_policy_loss, 'k--')
