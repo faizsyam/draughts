@@ -48,7 +48,7 @@ class MCTS():
 	def __len__(self):
 		return len(self.tree)
 
-	def moveToLeaf(self):
+	def moveToLeaf(self,count):
 		
 		# lg.logger_mcts.info('------MOVING TO LEAF------')
 
@@ -57,20 +57,20 @@ class MCTS():
 
 		done = 0
 		value = 0
-
-		count = 0
-		
+		cc = 0
 		while not currentNode.isLeaf():
 			# print('1 ',end='')
-			# if (count >= 400)&(count <= 600):
+			if cc >= 1000:
+				print('break',end=' ')
+				break
 			# 	# cek = currentNode.state.board.white_man_count()==0 & currentNode.state.board.black_man_count()==0 & currentNode.state.board.white_king_count()>0 & currentNode.state.board.black_king_count()>0
-			# 	print('Noonono')
+				# print('Noonono')
 			# 	print(currentNode.state.board.white_man_count(),end=' ')
 			# 	print(currentNode.state.board.black_man_count(),end=' ')
 			# 	print(currentNode.state.board.white_king_count(),end=' ')
 			# 	print(currentNode.state.board.black_king_count(),end=' ')
 			# 	# # display_position(currentNode.state.board)
-			# 	print(currentNode.state.board)
+				# print(currentNode.state.board)
 			# 	# # print(currentNode.state.board.is_end())
 
 				# Scan.set("variant", "normal")
@@ -119,12 +119,11 @@ class MCTS():
 
 			# lg.logger_mcts.info('action with highest Q + U...%d', simulationAction)
 
-			newState, value, done, _ = currentNode.state.takeAction(simulationAction) #the value of the newState from the POV of the new playerTurn
+			newState, value, done, _, count = currentNode.state.takeAction(simulationAction,count) #the value of the newState from the POV of the new playerTurn
 			currentNode = simulationEdge.outNode
 			breadcrumbs.append(simulationEdge)
 
-			count += 1
-
+			cc += 1
 		# lg.logger_mcts.info('DONE...%d', done)
 
 		return currentNode, value, done, breadcrumbs

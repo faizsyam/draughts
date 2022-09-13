@@ -4,7 +4,7 @@ import datetime
 file2write = "logs " + str(datetime.datetime.now())[:16]
 
 # Model hyperparameters
-nb_filters_3x3 = 64 # number of filters in each 3x3 convolutional layers, 256 in AlphaGo Zero
+nb_filters_3x3 = 256 # number of filters in each 3x3 convolutional layers, 256 in AlphaGo Zero
 value_head_hidden_layer_size = 128 # number of hidden units in the hidden layer of value head
 nb_residual_blocks = 10 # number of residual blocks in the neural network architecture
 

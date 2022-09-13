@@ -38,8 +38,8 @@ class Game:
 		self.gameState = GameState(start_position())
 		return self.gameState
 
-	def step(self, action):
-		next_state, value, done, _ = self.gameState.takeAction(action)
+	def step(self, action, count):
+		next_state, value, done, _, count = self.gameState.takeAction(action, count)
 		# if(self.gameState.board.is_capture()):
 		# 	print('from')
 		# 	print(self.gameState.board)
@@ -49,7 +49,7 @@ class Game:
 		self.gameState = next_state
 		# self.currentPlayer = -self.currentPlayer
 		info = None
-		return ((next_state, value, done, info))
+		return ((next_state, value, done, info, count))
 
 	def identities(self, state, actionValues):
 		# FIX IDENTITIES
@@ -247,35 +247,28 @@ class GameState():
 		return (tmp[1], tmp[2])
 
 
-	def takeAction(self, action):
+	def takeAction(self, action, count = -1):
 		# print('in')
 		board = self.board
 		# if not self.board.is_white_to_move():
 			# board.flip()
+		if count != -1:
+			if (move_is_capture(action,board)) | (move_is_promotion(action,board)):
+				count = 0
+				# if move_is_capture(action,board):
+				# 	print('c',end=' ')
+				# else:
+				# 	print('p',end=' ')
+			elif (board.white_king_count() > 0) & (board.black_king_count() > 0):
+				count += 1
+				# print('e',end=' ')
+
 		newpos = board.succ(action)
 		moves = generate_moves(newpos)
 		
-		count = 0
 		while (newpos.is_capture()) & (len(moves)==1):
-			count+=1
 			newpos = play_forced_moves(newpos)
 			moves = generate_moves(newpos)
-
-		# if newpos.is_capture():
-		# 	print('YES')
-		# else:
-		# 	print('NO')
-		# count = 0
-		# print('in2')
-		# while newpos.is_capture():
-		# 	count += 1
-		# 	moves = generate_moves(newpos)
-		# 	try:
-		# 		newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
-		# 	except:
-		# 		display_position(newpos)
-		# 		newpos = play_forced_moves(newpos.succ(moves[random.randint(0,len(moves)-1)]))
-
 			
 		# if not self.board.is_white_to_move():
 			# newpos.flip()
@@ -310,15 +303,18 @@ class GameState():
 					value = -1 if newpos.turn()==Side.White else 1
 				done = 1
 
-
+		if count == 20:
+			# print('AHA')
+			# print(board)
+			value = 0
+			done = 1
 		# if (newpos.white_king_count()>0) & (newpos.black_king_count()>0):
 		# 	print('gotya')
 		# 	print(newpos)
 			
 		# 	if newpos.white_man_count() + newpos.black_man_count() + newpos.white_king_count() + newpos.black_king_count()<=6:
 		# 		print('probe',EGDB.probe(newpos))
-			
-		return (newState, value, done, newpos.is_capture()) 
+		return (newState, value, done, newpos.is_capture(), count) 
 
 
 	def render(self, logger):		
