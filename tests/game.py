@@ -304,7 +304,7 @@ class GameState():
 				done = 1
 
 		if count == 20:
-			# print('AHA')
+			# print('AHA',end=' ')
 			# print(board)
 			value = 0
 			done = 1

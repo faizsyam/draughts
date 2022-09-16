@@ -70,6 +70,7 @@ class Policy_head(nn.Module):
 		self.fc = nn.Linear(in_features=nb_filters_policy_head * map_size[0] * map_size[1], 
 							out_features=570, # << out size here
 							bias=True)
+		self.softmax = nn.Softmax()
 
 
 	def forward(self, x):
@@ -77,6 +78,7 @@ class Policy_head(nn.Module):
 		out = self.bn(out)
 		out = self.relu(out)
 		out = self.fc(out.view(out.size(0), -1))
+		out = self.softmax(out)
 		return out
 
 

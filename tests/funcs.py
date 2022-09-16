@@ -15,32 +15,39 @@ import config
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def playMatchesBetweenVersions(env, run_version, player1version, player2version, EPISODES, logger, turns_until_tau0, goes_first = 0):
+def playMatchesBetweenVersions(env, player1_NN, player2_NN, EPISODES, turns_until_tau0, goes_first = 0):
     
-    if player1version == -1:
-        player1 = User('player1', env.state_size, env.action_size)
-    else:
-        # player1_NN = Residual_CNN(config.REG_CONST, config.LEARNING_RATE, env.input_shape,   env.action_size, config.HIDDEN_CNN_LAYERS)
-        player1_NN = CNN_Net().to(device)
+    logger = lg.logger_tourney
+    # if player1version == -1:
+    #     player1 = User('player1', env.state_size, env.action_size)
+    # else:
+    #     # player1_NN = Residual_CNN(config.REG_CONST, config.LEARNING_RATE, env.input_shape,   env.action_size, config.HIDDEN_CNN_LAYERS)
+    #     # player1_NN = CNN_Net().to(device)
 
 
-        if player1version > 0:
-            # player1_network = player1_NN.read(env.name, run_version, player1version)
-            # player1_NN.model.set_weights(player1_network.get_weights())  
-            player1_NN.load_state_dict(torch.load(run_folder + 'models2/weights_v' + "{0:0>4}".format(player1version)))
-        player1 = Agent('player1', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player1_NN)
+    #     # if player1version > 0:
+    #     #     # player1_network = player1_NN.read(env.name, run_version, player1version)
+    #     #     # player1_NN.model.set_weights(player1_network.get_weights())  
+    #     #     player1_NN.load_state_dict(torch.load(run_folder + 'models2/weights_v' + "{0:0>4}".format(player1version)))
+    #     player1_NN = torch.load(run_folder + 'models3/model_v' + "{0:0>4}".format(player1version))
+    #     # player1_NN.load_state_dict(torch.load(run_folder + 'models3/weights_v' + "{0:0>4}".format(player1version)))
+    #     player1 = Agent('player1', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player1_NN)
+    player1 = Agent('player1', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player1_NN)
 
-    if player2version == -1:
-        player2 = User('player2', env.state_size, env.action_size)
-    else:
-        # player2_NN = Residual_CNN(config.REG_CONST, config.LEARNING_RATE, env.input_shape,   env.action_size, config.HIDDEN_CNN_LAYERS)
-        player2_NN = CNN_Net().to(device)
+    # if player2version == -1:
+    #     player2 = User('player2', env.state_size, env.action_size)
+    # else:
+    #     # player2_NN = Residual_CNN(config.REG_CONST, config.LEARNING_RATE, env.input_shape,   env.action_size, config.HIDDEN_CNN_LAYERS)
+    #     # player2_NN = CNN_Net().to(device)
         
-        if player2version > 0:
-            # player2_network = player2_NN.read(env.name, run_version, player2version)
-            # player2_NN.model.set_weights(player2_network.get_weights())
-            player2_NN.load_state_dict(torch.load(run_folder + 'models2/weights_v' + "{0:0>4}".format(player1version)))
-        player2 = Agent('player2', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player2_NN)
+    #     # if player2version > 0:
+    #     #     # player2_network = player2_NN.read(env.name, run_version, player2version)
+    #     #     # player2_NN.model.set_weights(player2_network.get_weights())
+    #     #     player2_NN.load_state_dict(torch.load(run_folder + 'models2/weights_v' + "{0:0>4}".format(player1version)))
+    #     player2_NN = torch.load(run_folder + 'models2/model_v' + "{0:0>4}".format(player2version))
+    #     # player2_NN.load_state_dict(torch.load(run_folder + 'models2/weights_v' + "{0:0>4}".format(player2version)))
+    #     player2 = Agent('player2', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player2_NN)
+    player2 = Agent('player2', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player2_NN)
 
     scores, memory, points, sp_scores = playMatches(player1, player2, EPISODES, logger, turns_until_tau0, None, goes_first)
 

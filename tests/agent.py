@@ -229,6 +229,7 @@ class Agent():
 
 		move_ids = []
 		# print('get preds aa: ',len(allowedActions))
+		# print('check')
 		for move in allowedActions:
 			# move_id = get_normal_move_id(move,state.board,normal_move_df)
 			if is_capture:
@@ -236,10 +237,9 @@ class Agent():
 			else:
 				move_id = get_normal_move_id(move,state.board,king_move_df)
 			move_ids.append(move_id)
-
 		if is_capture:
 			probs = list(np.zeros(2500,dtype=int))
-			for action in allowedActions:
+			for idx, action in enumerate(allowedActions):
 				newpos = state.board.succ(action)
 				inputToModel = pos_to_numpy1(newpos)
 				inputToModel = np.reshape(inputToModel, (4,10,10)) 
@@ -248,11 +248,11 @@ class Agent():
 				value = self.model(inputToModel.float(),is_capture)
 				value = list(value.cpu().detach().numpy())[0][0]
 				
-				move_id = get_normal_move_id(action,state.board,capture_move_df)
-				probs[move_id] = value
-
+				probs[move_ids[idx]] = value
+			
 			value = np.max(probs)
 			probs = np.array(probs)
+			# print(probs[move_ids])
 			return ((value, probs, allowedActions, move_ids))
 		else:
 			inputToModel = self.model.convertToModelInput(state.binary)
@@ -289,8 +289,10 @@ class Agent():
 			is_capture = leaf.state.board.is_capture()
 			value, probs, allowedActions, move_ids = self.get_preds(leaf.state,is_capture)
 			# print(type(probs))
-			probs = probs[move_ids]
-				
+			# print(is_capture)
+			# print(len(probs))
+			# probs = probs[move_ids]
+			# print(len(probs))
 			for idx, action in enumerate(allowedActions):
 				newState, _, _, _, _ = leaf.state.takeAction(action)
 				if newState.id not in self.mcts.tree:
@@ -306,23 +308,22 @@ class Agent():
 				# 	move_id = -1
 				# else:
 				# print('newedge')
-				newEdge = mc.Edge(leaf, node, probs[idx], action)
+				newEdge = mc.Edge(leaf, node, probs[move_ids[idx]], action)
 				# move_id = get_move_id(action,leaf.state.board,move_df)
 				# move_id = get_normal_move_id(action,leaf.state.board,normal_move_df)
-				if is_capture:
-					move_id = get_normal_move_id(action,leaf.state.board,capture_move_df)
-				else:
-					try:
-						move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
-					except:
-						display_position(leaf.state.board)
-						print('move:',print_move(action,leaf.state.board))
-						print('pos:',leaf.state.board)
-						move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
-
+				# if is_capture:
+				# 	move_id = get_normal_move_id(action,leaf.state.board,capture_move_df)
+				# else:
+				# 	try:
+				# 		move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
+				# 	except:
+				# 		display_position(leaf.state.board)
+				# 		print('move:',print_move(action,leaf.state.board))
+				# 		print('pos:',leaf.state.board)
+				# 		move_id = get_normal_move_id(action,leaf.state.board,king_move_df)
 				# print('move_id',move_id)
 				# print('done')
-				leaf.edges.append((action, move_id, newEdge))
+				leaf.edges.append((action, move_ids[idx], newEdge))
 				
 		# else:
 		# 	lg.logger_mcts.info('GAME VALUE FOR %d: %f', leaf.playerTurn, value)
@@ -443,13 +444,13 @@ class Agent():
 
 		optimizer = Adam(self.model.parameters(), lr=0.001, weight_decay=0.0001)
 		mse1 = nn.MSELoss()
-		mse2 = nn.MSELoss()
-		cet1 = nn.MSELoss()
+		# mse2 = nn.MSELoss()
+		cet1 = nn.L1Loss()
 		cet2 = nn.MSELoss()
 		
 		self.model.to(device)
 
-		loss_val_cap = []
+		# loss_val_cap = []
 		loss_val_ncap = []
 		loss_pol_cap = []
 		loss_pol_ncap = []
@@ -530,9 +531,11 @@ class Agent():
 				pred_value_ncap, pred_policy_ncap = self.model(x,False)
 				
 				loss_v_ncap = mse1(pred_value_ncap, y['value'])
-				loss_p_ncap = cet1(pred_policy_ncap, y['policy'])
-				
-				loss = loss_v_ncap + loss_p_ncap #+ loss_v_cap + loss_p_cap
+				loss_p_ncap = cet1(pred_policy_ncap, y['policy'])*200
+				# print(pred_policy_ncap)
+				# print(y['policy'])
+				# print(loss_p_ncap)
+				loss = loss_v_ncap + loss_p_ncap
 				loss.backward()
 				optimizer.step()
 
@@ -544,36 +547,40 @@ class Agent():
 				optimizer.zero_grad()
 				pred_policy_cap = self.model(x,True)
 
-				count = 0
-				tpc = pred_policy_cap.cpu().detach().numpy()
-				pred_value_cap_max = np.zeros(len(tpc))
-				for i in group_borders:
-					for j in range(count,i):
-						pred_value_cap_max[j] = np.max(tpc[count:i])
-					count = i
-				pred_value_cap_max = pred_value_cap_max[:,None]
-				pred_value_cap_max = torch.tensor(pred_value_cap_max,dtype=torch.float,requires_grad=True)
-				pred_value_cap_max = pred_value_cap_max.to(device)
+				# count = 0
+				# tpc = pred_policy_cap.cpu().detach().numpy()
+				# pred_value_cap_max = np.zeros(len(tpc))
+				# for i in group_borders:
+				# 	for j in range(count,i):
+				# 		pred_value_cap_max[j] = np.max(tpc[count:i])
+				# 	count = i
+				# pred_value_cap_max = pred_value_cap_max[:,None]
+				# pred_value_cap_max = torch.tensor(pred_value_cap_max,dtype=torch.float,requires_grad=True)
+				# pred_value_cap_max = pred_value_cap_max.to(device)
 				
-				loss_v_cap = mse2(pred_value_cap_max, y['value'])
-				loss_p_cap = cet2(pred_policy_cap, y['policy'])
-
-				loss = loss_v_cap + loss_p_cap
+				# loss_v_cap = mse2(pred_value_cap_max, y['value'])
+				# loss_p_cap = cet2(pred_policy_cap, y['policy'])
+				loss_p_cap = cet2(pred_policy_cap, y['value'])
+		
+				# print(pred_policy_cap)
+				# print(y['value'])
+				# print(loss_p_cap)
+				loss = loss_p_cap # + loss_v_cap
 				loss.backward()
 				optimizer.step()
 
-				loss_val_cap.append(loss_v_cap.cpu().detach().numpy())
+				# loss_val_cap.append(loss_v_cap.cpu().detach().numpy())
 				loss_pol_cap.append(loss_p_cap.cpu().detach().numpy())
 				# losses.append(loss.item())
 
 		print('')
 		# print(losses)
 
-		loss_val_cap = np.mean(np.array(loss_val_cap))
+		# loss_val_cap = np.mean(np.array(loss_val_cap))
 		loss_val_ncap = np.mean(np.array(loss_val_ncap))
-		loss_pol_cap = np.mean(np.array(loss_pol_cap))
 		loss_pol_ncap = np.mean(np.array(loss_pol_ncap))
-		print([loss_val_cap,loss_val_ncap,loss_pol_cap,loss_pol_ncap])
+		loss_pol_cap = np.mean(np.array(loss_pol_cap))
+		print([loss_val_ncap,loss_pol_ncap,loss_pol_cap])
 		# plt.plot(self.train_overall_loss, 'k')
 		# plt.plot(self.train_value_loss, 'k:')
 		# plt.plot(self.train_policy_loss, 'k--')
