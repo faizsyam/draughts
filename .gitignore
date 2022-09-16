@@ -663,3 +663,4 @@ tests/__pycache__/funcs.cpython-310.pyc
 tests/__pycache__/game.cpython-310.pyc
 tests/__pycache__/initialise.cpython-310.pyc
 tests/__pycache__/memory.cpython-310.pyc
+*.pyc

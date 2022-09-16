@@ -443,10 +443,10 @@ class Agent():
 		losses = []
 
 		optimizer = Adam(self.model.parameters(), lr=0.001, weight_decay=0.0001)
-		mse1 = nn.MSELoss()
+		mse1 = nn.L1Loss()
 		# mse2 = nn.MSELoss()
 		cet1 = nn.L1Loss()
-		cet2 = nn.MSELoss()
+		cet2 = nn.L1Loss()
 		
 		self.model.to(device)
 
@@ -520,7 +520,7 @@ class Agent():
 		dataloader_cap = DataLoader(dataset_cap, batch_size=config.BATCH_SIZE)
 
 		self.model.train(True)
-		print('init done')
+		print('len ncap:',len(training_states_ncap),'len cap:',len(training_states_cap))
 
 		for i in range(config.TRAINING_LOOPS):
 			print(i,end=' ')
@@ -531,7 +531,7 @@ class Agent():
 				pred_value_ncap, pred_policy_ncap = self.model(x,False)
 				
 				loss_v_ncap = mse1(pred_value_ncap, y['value'])
-				loss_p_ncap = cet1(pred_policy_ncap, y['policy'])*200
+				loss_p_ncap = cet1(pred_policy_ncap, y['policy'])
 				# print(pred_policy_ncap)
 				# print(y['policy'])
 				# print(loss_p_ncap)
