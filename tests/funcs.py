@@ -15,6 +15,88 @@ import config
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+from timeit import default_timer as timer   
+
+def playMatchAgaintsScan(env, player1_NN, max_depth, EPISODES, max_time = 5.0, goes_first = 0,turns_until_tau0=0):
+    Scan.set("variant", "normal")
+    Scan.set("book", "false")
+    Scan.set("book-ply", "4")
+    Scan.set("book-margin", "4")
+    Scan.set("ponder", "false")
+    Scan.set("threads", "1")
+    Scan.set("tt-size", "24")
+    Scan.set("bb-size", "4")
+    Scan.update()
+    Scan.init()
+
+    player1 = Agent('player1', env.state_size, env.action_size, config.MCTS_SIMS, config.CPUCT, player1_NN)
+    
+    scores = {player1.name:0, "drawn": 0, "scan":0}
+    sp_scores = {'sp':0, "drawn": 0, 'nsp':0}
+    points = {player1.name:[], "scan":[]}
+    
+    for e in range(EPISODES):
+        
+        print (str(e+1) + ' ', end='')
+
+        state = env.reset()
+        
+        done = 0
+        turn = 0
+        player1.mcts = None
+
+        if goes_first == 0:
+            player1Starts = random.randint(0,1) * 2 - 1
+        else:
+            player1Starts = goes_first
+
+        if player1Starts == 1:
+            players = {1:{"agent": player1, "name":player1.name}
+                    , -1: {"name": "scan"}
+                    }
+        else:
+            players = {1:{"name": "scan"}
+                    , -1: {"agent": player1, "name":player1.name}
+                    }
+
+        count = 0
+        while done == 0:
+            turn = turn + 1
+
+            if state.playerTurn == player1Starts:
+                if turn < turns_until_tau0:
+                    action, pi, MCTS_value, NN_value = player1.act(state, 1, count)
+                else:
+                    action, pi, MCTS_value, NN_value = player1.act(state, 0, count)
+            else:
+                pi, action = scan_search(state.board, max_depth, max_time)
+
+            state, value, done, _, count = env.step(action, count)
+
+            if done == 1: 
+                if value!=0:
+                    scores[players[-value]['name']] = scores[players[-value]['name']] + 1
+                
+                    if value == 1: 
+                        sp_scores['nsp'] = sp_scores['nsp'] + 1
+                    else:
+                        sp_scores['sp'] = sp_scores['sp'] + 1
+                    points[players[value]['name']].append(-1)
+                    points[players[-value]['name']].append(1)
+
+                else:
+                    scores['drawn'] = scores['drawn'] + 1
+                    sp_scores['drawn'] = sp_scores['drawn'] + 1
+                    points[players[state.playerTurn]['name']].append(0)
+                    points[players[-state.playerTurn]['name']].append(0)
+
+
+    return (scores, points, sp_scores)
+
+        
+
+
 def playMatchesBetweenVersions(env, player1_NN, player2_NN, EPISODES, turns_until_tau0, goes_first = 0):
     
     logger = lg.logger_tourney
@@ -97,6 +179,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
 
         count = 0
         # print('XXX',end=' ')
+        ntime = 0
         while done == 0:
             # try:
             #     tboard = state.board
@@ -110,11 +193,32 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             turn = turn + 1
     
             #### Run the MCTS algo and return an action
+            start = timer()
             if turn < turns_until_tau0:
                 action, pi, MCTS_value, NN_value = players[state.playerTurn]['agent'].act(state, 1, count)
             else:
                 action, pi, MCTS_value, NN_value = players[state.playerTurn]['agent'].act(state, 0, count)
-
+            # print(timer()-start)
+            ntime += timer()-start
+            # print('-----')
+            # print('others',players[state.playerTurn]['agent'].others)
+            # print('mtl',players[state.playerTurn]['agent'].mtl)
+            # print('el',players[state.playerTurn]['agent'].el)
+            # print('bf',players[state.playerTurn]['agent'].bf)
+            # print('gp',players[state.playerTurn]['agent'].gp)
+            # print('aa',players[state.playerTurn]['agent'].aa)
+            # print('p1',players[state.playerTurn]['agent'].p1)
+            # print('p2',players[state.playerTurn]['agent'].p2)
+            # print('p3',players[state.playerTurn]['agent'].p3)
+            # print('pp1',players[state.playerTurn]['agent'].pp1)
+            # print('pp2',players[state.playerTurn]['agent'].pp2)
+            # print('pp3',players[state.playerTurn]['agent'].pp3)
+            # print('c1',players[state.playerTurn]['agent'].c1)
+            # print('c2',players[state.playerTurn]['agent'].c2)
+            # print('p2/c1',players[state.playerTurn]['agent'].p2/players[state.playerTurn]['agent'].c1)
+            # print('pp2/c2',players[state.playerTurn]['agent'].pp2/players[state.playerTurn]['agent'].c2)
+            if len(players[state.playerTurn]['agent'].mcts.tree)>999999:
+                print(len(players[state.playerTurn]['agent'].mcts.tree))
             if memory != None:
                 ####Commit the move to memory
                 # if state.board.is_capture():
@@ -148,8 +252,14 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
             #     print(print_move(action))
             #     display_position(state.board)
             # print(state.playerTurn)
-            # display_position(state.board)
+            display_position(state.board)
             if done == 1: 
+                
+                # print(len(players[1]['agent'].mcts.tree))
+                # print(len(players[-1]['agent'].mcts.tree))
+                # print('turns',turn)
+                # print('ntime',ntime)
+                # print('ntime/turn',ntime/turn)
                 # print('cp ',state.playerTurn,'val ',value)
                 # print(state.board)
                 # print('res: ',state.board.result(state.board.turn()),' val: ',value)
@@ -167,6 +277,7 @@ def playMatches(player1, player2, EPISODES, logger, turns_until_tau0, memory = N
                          
                     memory.commit_ltmemory()
              
+                # print('ltsize:',len(memory.ltmemory))
                 # if value == 1:
                 #     logger.info('%s WINS!', players[state.playerTurn]['name'])
                 #     scores[players[state.playerTurn]['name']] = scores[players[state.playerTurn]['name']] + 1

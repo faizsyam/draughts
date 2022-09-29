@@ -9,11 +9,12 @@ import loggers as lg
 
 class Node():
 
-	def __init__(self, state):
+	def __init__(self, state, count = 0):
 		self.state = state
 		self.playerTurn = state.playerTurn
 		self.id = state.id
 		self.edges = []
+		self.count = count
 
 	def isLeaf(self):
 		if len(self.edges) > 0:
@@ -58,10 +59,11 @@ class MCTS():
 		done = 0
 		value = 0
 		cc = 0
-		while not currentNode.isLeaf():
+		while (not currentNode.isLeaf()) & (done==0):
 			# print('1 ',end='')
-			if cc >= 1000:
+			if cc >= 99999:
 				print('break',end=' ')
+				# display_position(currentNode.state.board)
 				break
 			# 	# cek = currentNode.state.board.white_man_count()==0 & currentNode.state.board.black_man_count()==0 & currentNode.state.board.white_king_count()>0 & currentNode.state.board.black_king_count()>0
 				# print('Noonono')
@@ -119,7 +121,7 @@ class MCTS():
 
 			# lg.logger_mcts.info('action with highest Q + U...%d', simulationAction)
 
-			newState, value, done, _, count = currentNode.state.takeAction(simulationAction,count) #the value of the newState from the POV of the new playerTurn
+			newState, value, done, _, _ = currentNode.state.takeAction(simulationAction,currentNode.count) #the value of the newState from the POV of the new playerTurn
 			currentNode = simulationEdge.outNode
 			breadcrumbs.append(simulationEdge)
 

@@ -13,7 +13,7 @@ from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader, Dataset
 
 import MCTS as mc
-from game import king_move_df, capture_move_df
+from game import king_move_df, capture_move_df, king_moves, capture_moves
 from loss import softmax_cross_entropy_with_logits
 
 import config
@@ -33,21 +33,24 @@ from timeit import default_timer as timer
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class M(Dataset):
-	def __init__(self,state,value,policy):
+	def __init__(self,state,value,policy = []):
 		super().__init__()
 		self.state = state
 		self.value = value
 		self.policy = policy
 
 	def __getitem__(self, i):
-		return self.state[i], {'value':self.value[i], 'policy':self.policy[i]}
+		if len(self.policy)==0:
+			return self.state[i], {'value':self.value[i]}
+		else:
+			return self.state[i], {'value':self.value[i], 'policy':self.policy[i]}
 
 	def __len__(self):
 		return len(self.state)
 
 def get_normal_move_id(action,pos,move_df):
     move = print_move(action,pos)
-    if move_is_capture(action,pos):
+    if pos.is_capture():
            pos_str = move.split('x')
     else:
         pos_str = move.split('-')
@@ -63,21 +66,24 @@ def get_normal_move_id(action,pos,move_df):
         to_ = 51 - to_
 
     try:
-        move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+        # move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+        move_id = move_df[from_-1][to_-1]
     except:
         print('')
         print('ERR ', from_, to_)
         print(pos.is_capture())
         print(move_is_capture(action,pos))
-        display_position(pos)
-        move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+        # display_position(pos)
+        # move_id = move_df[(move_df['from']==from_)&(move_df['to']==to_)]['move_id'].iloc[0]
+        move_id = move_df[from_-1][to_-1]
     
     return move_id
 
 def get_normal_move(move_id,pos,move_df):
-    mv = move_df[move_df['move_id']==move_id]
-    from_ = mv['from'].iloc[0]
-    to_ = mv['to'].iloc[0]
+    # mv = move_df[move_df['move_id']==move_id]
+    mv = np.where(move_df == move_id)
+    from_ = int(mv[0]) + 1
+    to_ = int(mv[1]) + 1
     
     if not pos.is_white_to_move():
         from_ = 51 - from_
@@ -164,6 +170,27 @@ class Agent():
 		self.val_value_loss = []
 		self.val_policy_loss = []
 
+		# self.start = timer()
+		# self.others = 0
+		# self.mtl = 0
+		# self.el = 0
+		# self.bf = 0
+
+		# self.gp = 0
+		# self.aa = 0
+
+		# self.p1 = 0
+		# self.p2 = 0
+		# self.p3 = 0
+
+		# self.pp1 = 0
+		# self.pp2 = 0
+		# self.pp3 = 0
+
+		# self.c1 = 0
+		# self.c2 = 0
+		
+
 	
 	def simulate(self, count):
 		# lg.logger_mcts.info('ROOT NODE...%s', self.mcts.root.state.id)
@@ -171,15 +198,23 @@ class Agent():
 		# lg.logger_mcts.info('CURRENT PLAYER...%d', self.mcts.root.state.playerTurn)
 
 		##### MOVE THE LEAF NODE
+		# self.others += timer() - self.start
+		# self.start = timer()
+
 		leaf, value, done, breadcrumbs = self.mcts.moveToLeaf(count)
 		# leaf.state.render(lg.logger_mcts)
-
+		# self.mtl += timer() - self.start
+		# self.start = timer()
 		##### EVALUATE THE LEAF NODE
 		value, breadcrumbs = self.evaluateLeaf(leaf, value, done, breadcrumbs)
 
+		# self.el += timer() - self.start
+		# self.start = timer()
 
 		##### BACKFILL THE VALUE THROUGH THE TREE
 		self.mcts.backFill(leaf, value, breadcrumbs)
+		# self.bf += timer() - self.start
+		# self.start = timer()
 
 
 	def act(self, state, tau, count):
@@ -189,13 +224,37 @@ class Agent():
 		else:
 			self.changeRootMCTS(state)
 
+		
+		# self.others = 0
+		# self.mtl = 0
+		# self.el = 0
+		# self.bf = 0
+		
+		# self.gp = 0
+		# self.aa = 0
 
+		# self.p1 = 0
+		# self.p2 = 0
+		# self.p3 = 0
+
+		# self.pp1 = 0
+		# self.pp2 = 0
+		# self.pp3 = 0
+
+		# self.c1 = 0
+		# self.c2 = 0
 		#### run the simulation
+		# print('|',end='')
+		# simtime = 0
 		for sim in range(self.MCTSsimulations):
+			# start = timer()
 			# lg.logger_mcts.info('***************************')
 			# lg.logger_mcts.info('****** SIMULATION %d ******', sim + 1)
 			# lg.logger_mcts.info('***************************')
+			# print('.',end='')
 			self.simulate(count)
+			# simtime += timer() - start
+		# print('avg sim time:', simtime/self.MCTSsimulations)
 
 		#### get action values
 
@@ -204,13 +263,13 @@ class Agent():
 		####pick the action
 		action, value = self.chooseAction(pi, values, tau, state)
 
-		nextState, _, _, is_capture, _ = state.takeAction(action, count)
+		# nextState, _, _, is_capture, _ = state.takeAction(action, count)
 		
 		# print('player: ',state.playerTurn,' move: ',print_move(action,state.board),' value: ',value)
 		# display_position(nextState.board)
 		# print(is_capture)
-		NN_value = -self.get_preds(nextState, is_capture)[0]
-		
+		# NN_value = -self.get_preds(nextState, is_capture)[0]
+		NN_value = 0
 		# lg.logger_mcts.info('ACTION VALUES...%s', pi)
 		# lg.logger_mcts.info('CHOSEN ACTION...%d', action)
 		# lg.logger_mcts.info('MCTS PERCEIVED VALUE...%f', value)
@@ -224,7 +283,7 @@ class Agent():
 	def get_preds(self, state, is_capture):
 		#predict the leaf
 		
-
+		# start = timer()
 		allowedActions = state.allowedActions
 
 		move_ids = []
@@ -233,19 +292,25 @@ class Agent():
 		for move in allowedActions:
 			# move_id = get_normal_move_id(move,state.board,normal_move_df)
 			if is_capture:
-				move_id = get_normal_move_id(move,state.board,capture_move_df)
+				move_id = get_normal_move_id(move,state.board,capture_moves)
 			else:
-				move_id = get_normal_move_id(move,state.board,king_move_df)
+				move_id = get_normal_move_id(move,state.board,king_moves)
 			move_ids.append(move_id)
+		# self.p1 += timer()-start
+		# start = timer()
 		if is_capture:
 			probs = list(np.zeros(2500,dtype=int))
 			for idx, action in enumerate(allowedActions):
 				newpos = state.board.succ(action)
 				inputToModel = pos_to_numpy1(newpos)
 				inputToModel = np.reshape(inputToModel, (4,10,10)) 
-				inputToModel = torch.tensor(np.array([inputToModel],dtype=np.float64)).to(device)
+				inputToModel = torch.tensor(np.array([inputToModel]),dtype=torch.float64, device=device)
+				# self.c1 += 1
 				
+				# start = timer()
 				value = self.model(inputToModel.float(),is_capture)
+				value = -value
+				# self.p2 += timer()-start
 				value = list(value.cpu().detach().numpy())[0][0]
 				
 				probs[move_ids[idx]] = value
@@ -255,16 +320,23 @@ class Agent():
 			# print(probs[move_ids])
 			return ((value, probs, allowedActions, move_ids))
 		else:
+			# start1 = timer()
 			inputToModel = self.model.convertToModelInput(state.binary)
-			inputToModel = torch.tensor(np.array(inputToModel,dtype=np.float64)).to(device)
+			inputToModel = torch.tensor(np.array(inputToModel),dtype=torch.float64, device=device)
 
+			# self.pp1 += timer()-start1
+			# start1 = timer()
 			# preds = self.model.predict(inputToModel)
+			# self.c2 += 1
 			preds = self.model(inputToModel.float(),is_capture)
+			
+			# print('vp: ',value_array,logits_array)
+			# self.pp2 += timer()-start1
+			# start1 = timer()
+
 			value_array = preds[0].cpu().detach().numpy()
 			logits_array = preds[1].cpu().detach().numpy()
-			# print('vp: ',value_array,logits_array)
 			value = value_array[0]
-
 			logits = logits_array[0]
 			mask = np.ones(logits.shape,dtype=bool)
 			mask[move_ids] = False
@@ -273,7 +345,9 @@ class Agent():
 			#SOFTMAX
 			odds = np.exp(logits)
 			probs = odds / np.sum(odds) ###put this just before the for?
-
+			
+			# self.pp3 += timer()-start1
+			# self.p3 += timer()-start
 			return ((value, probs, allowedActions, move_ids))
 
 
@@ -281,22 +355,28 @@ class Agent():
 
 		# lg.logger_mcts.info('------EVALUATING LEAF------')
 
+		# start = timer()
 		if done == 0:
 			# poss = leaf.state.board
 			# if leaf.state.playerTurn==-1:
 			# 	poss = poss.flip()
 			# display_position(poss)
 			is_capture = leaf.state.board.is_capture()
+
+			# self.el += timer()-self.start
 			value, probs, allowedActions, move_ids = self.get_preds(leaf.state,is_capture)
 			# print(type(probs))
 			# print(is_capture)
 			# print(len(probs))
 			# probs = probs[move_ids]
 			# print(len(probs))
+			# print('aa',len(allowedActions))
+			# self.gp += timer()-start
+			# start = timer()
 			for idx, action in enumerate(allowedActions):
-				newState, _, _, _, _ = leaf.state.takeAction(action)
+				newState, _, _, _, count = leaf.state.takeAction(action,leaf.count)
 				if newState.id not in self.mcts.tree:
-					node = mc.Node(newState)
+					node = mc.Node(newState,count)
 					self.mcts.addNode(node)
 					# lg.logger_mcts.info('added node...%s...p = %f', node.id, probs[idx])
 				else:
@@ -327,7 +407,9 @@ class Agent():
 				
 		# else:
 		# 	lg.logger_mcts.info('GAME VALUE FOR %d: %f', leaf.playerTurn, value)
-
+		
+		# self.aa += timer()-start
+		# start = timer()
 		return ((value, breadcrumbs))
 
 	def getAV(self, tau,is_capture):
@@ -377,9 +459,9 @@ class Agent():
 		# print('av: ',action, value)
 		# action_move = get_normal_move(action,state.board,normal_move_df)
 		if state.board.is_capture():
-			action_move = get_normal_move(action,state.board,capture_move_df)
+			action_move = get_normal_move(action,state.board,capture_moves)
 		else:
-			action_move = get_normal_move(action,state.board,king_move_df)
+			action_move = get_normal_move(action,state.board,king_moves)
 
 		# mdf = move_df[move_df['index']==action]
 		# xx = 'x' if state.board.is_capture() else '-'
@@ -452,7 +534,7 @@ class Agent():
 
 		# loss_val_cap = []
 		loss_val_ncap = []
-		loss_pol_cap = []
+		loss_val_cap = []
 		loss_pol_ncap = []
 
 		training_states_ncap = []
@@ -468,18 +550,22 @@ class Agent():
 			value = row['value']
 			policy = row['AV']
 			if row['is_capture']:
-				init_state = self.convertIDToPos(row['id'])
-				moves = generate_moves(init_state)
-				for move in moves:
-					state = init_state.succ(move)
-					state = self.convertPosToModelInput(state)
-					training_states_cap.append(state)
-					training_value_cap.append(value)
-					group_ids.append(len(group_borders))
-					count += 1
-				group_borders.append(count)
-				for i in policy:
-					training_policy_cap.append(i)
+				# init_state = self.convertIDToPos(row['id'])
+				# moves = generate_moves(init_state)
+				# for move in moves:
+				# 	state = init_state.succ(move)
+				# 	state = self.convertPosToModelInput(state)
+				# 	training_states_cap.append(state)
+				# 	training_value_cap.append(value)
+				# 	group_ids.append(len(group_borders))
+				# 	count += 1
+				# group_borders.append(count)
+				# for i in policy:
+				# 	training_policy_cap.append(i)
+				state = self.convertIDToModelInput(row['id'])
+				training_states_cap.append(state)
+				training_value_cap.append(value)
+				# training_policy_cap.append(value)
 			else:
 				state = self.convertIDToModelInput(row['id'])
 				training_states_ncap.append(state)
@@ -493,7 +579,7 @@ class Agent():
 		training_value_cap = np.array(training_value_cap,dtype=np.float64)
 		
 		training_policy_ncap = np.array(training_policy_ncap,dtype=np.float64)
-		training_policy_cap = np.array(training_policy_cap,dtype=np.float64)
+		# training_policy_cap = np.array(training_policy_cap,dtype=np.float64)
 
 		training_states_ncap = torch.tensor(training_states_ncap,dtype=torch.float)
 		training_states_cap = torch.tensor(training_states_cap,dtype=torch.float)
@@ -504,18 +590,18 @@ class Agent():
 		training_value_cap = training_value_cap[:,None]
 
 		training_policy_ncap = torch.tensor(training_policy_ncap,dtype=torch.float,requires_grad=True)
-		training_policy_cap = torch.tensor(training_policy_cap,dtype=torch.float,requires_grad=True)
-		training_policy_cap = training_policy_cap[:,None]
+		# # training_policy_cap = torch.tensor(training_policy_cap,dtype=torch.float,requires_grad=True)
+		# # training_policy_cap = training_policy_cap[:,None]
 		
 		training_states_ncap = training_states_ncap.to(device)
 		training_states_cap = training_states_cap.to(device)
 		training_value_ncap = training_value_ncap.to(device)
 		training_value_cap = training_value_cap.to(device)
 		training_policy_ncap = training_policy_ncap.to(device)
-		training_policy_cap = training_policy_cap.to(device)
+		# # training_policy_cap = training_policy_cap.to(device)
 
 		dataset_ncap = M(training_states_ncap,training_value_ncap,training_policy_ncap)
-		dataset_cap = M(training_states_cap,training_value_cap,training_policy_cap)
+		dataset_cap = M(training_states_cap,training_value_cap)
 		dataloader_ncap = DataLoader(dataset_ncap, batch_size=config.BATCH_SIZE)
 		dataloader_cap = DataLoader(dataset_cap, batch_size=config.BATCH_SIZE)
 
@@ -530,7 +616,7 @@ class Agent():
 				optimizer.zero_grad()
 				pred_value_ncap, pred_policy_ncap = self.model(x,False)
 				
-				loss_v_ncap = mse1(pred_value_ncap, y['value'])
+				loss_v_ncap = mse1(pred_value_ncap, y['value'])*10
 				loss_p_ncap = cet1(pred_policy_ncap, y['policy'])
 				# print(pred_policy_ncap)
 				# print(y['policy'])
@@ -545,10 +631,10 @@ class Agent():
 			for x, y in dataloader_cap:
 
 				optimizer.zero_grad()
-				pred_policy_cap = self.model(x,True)
+				pred_val_cap = self.model(x,True)
 
 				# count = 0
-				# tpc = pred_policy_cap.cpu().detach().numpy()
+				# tpc = pred_val_cap.cpu().detach().numpy()
 				# pred_value_cap_max = np.zeros(len(tpc))
 				# for i in group_borders:
 				# 	for j in range(count,i):
@@ -559,18 +645,18 @@ class Agent():
 				# pred_value_cap_max = pred_value_cap_max.to(device)
 				
 				# loss_v_cap = mse2(pred_value_cap_max, y['value'])
-				# loss_p_cap = cet2(pred_policy_cap, y['policy'])
-				loss_p_cap = cet2(pred_policy_cap, y['value'])
+				# loss_v_cap = cet2(pred_val_cap, y['policy'])
+				loss_v_cap = cet2(pred_val_cap, y['value'])
 		
-				# print(pred_policy_cap)
+				# print(pred_val_cap)
 				# print(y['value'])
-				# print(loss_p_cap)
-				loss = loss_p_cap # + loss_v_cap
+				# print(loss_v_cap)
+				loss = loss_v_cap # + loss_v_cap
 				loss.backward()
 				optimizer.step()
 
 				# loss_val_cap.append(loss_v_cap.cpu().detach().numpy())
-				loss_pol_cap.append(loss_p_cap.cpu().detach().numpy())
+				loss_val_cap.append(loss_v_cap.cpu().detach().numpy())
 				# losses.append(loss.item())
 
 		print('')
@@ -579,8 +665,8 @@ class Agent():
 		# loss_val_cap = np.mean(np.array(loss_val_cap))
 		loss_val_ncap = np.mean(np.array(loss_val_ncap))
 		loss_pol_ncap = np.mean(np.array(loss_pol_ncap))
-		loss_pol_cap = np.mean(np.array(loss_pol_cap))
-		print([loss_val_ncap,loss_pol_ncap,loss_pol_cap])
+		loss_val_cap = np.mean(np.array(loss_val_cap))
+		print([loss_val_ncap,loss_pol_ncap,loss_val_cap])
 		# plt.plot(self.train_overall_loss, 'k')
 		# plt.plot(self.train_value_loss, 'k:')
 		# plt.plot(self.train_policy_loss, 'k--')

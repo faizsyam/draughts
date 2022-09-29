@@ -22,6 +22,9 @@ normal_move_df = pd.read_csv('normal_moves.csv')
 king_move_df = pd.read_csv('king_moves.csv')
 capture_move_df = pd.read_csv('capture_moves.csv')
 
+king_moves = np.load("king_moves.npy")
+capture_moves = np.load("capture_moves.npy")
+
 class Game:
 
 	def __init__(self):	
@@ -165,7 +168,25 @@ class GameState():
 		# return (position)
 
 	def _convertStateToId(self):
-		
+		# pos = self.board
+		# posIDs = []
+		# wtm = True
+		# if not pos.is_white_to_move():
+		# 	pos.flip()
+		# 	wtm = False
+			
+			
+		# text = print_position(pos, False, True)
+		# text = np.array([*text[:-1]])
+
+		# for i,c in enumerate(['o','x','O','X']):
+		# 	idx = list(np.where(np.array(text)==c)[0])
+		# 	posIDs.append(idx)
+			
+		# if not wtm:
+		# 	pos.flip()
+			
+		# return posIDs
 		board = np.array(np.zeros(200),dtype=int)
 		ppos = self.board
 
@@ -187,8 +208,8 @@ class GameState():
 			ppos.flip()
 		return result
 
-		# position = pos_to_numpy1(self.board)
-		# return ''.join(map(str,position))
+		position = pos_to_numpy1(self.board)
+		return ''.join(map(str,position))
 
 		text = print_position(self.board, False, True)
 
@@ -253,6 +274,8 @@ class GameState():
 		# if not self.board.is_white_to_move():
 			# board.flip()
 		if count != -1:
+			# if count>=1:
+			# 	print(count,end=' ')
 			if (move_is_capture(action,board)) | (move_is_promotion(action,board)):
 				count = 0
 				# if move_is_capture(action,board):
@@ -303,10 +326,21 @@ class GameState():
 					value = -1 if newpos.turn()==Side.White else 1
 				done = 1
 
-		if count == 20:
-			# print('AHA',end=' ')
+		if count >= 10:
+			print('A',count,end=' ')
 			# print(board)
-			value = 0
+			sums = newpos.white_man_count() + newpos.black_man_count() + newpos.white_king_count() + newpos.black_king_count()
+			if sums<=6:
+				probe = EGDB.probe(newpos)
+				# print('pprobe',probe,'turn',newpos.is_white_to_move())
+				if probe==0:
+					value = 0
+				elif probe==1:
+					value = 1 if newpos.turn()==Side.White else -1
+				else:
+					value = -1 if newpos.turn()==Side.White else 1
+			else:
+				value = 0
 			done = 1
 		# if (newpos.white_king_count()>0) & (newpos.black_king_count()>0):
 		# 	print('gotya')

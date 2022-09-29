@@ -1,0 +1,9 @@
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\draughts1.cp310-win_amd64.pyd
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\draughts1.py
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\dependency_links.txt
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\native_libs.txt
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\not-zip-safe
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\PKG-INFO
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\SOURCES.txt
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\EGG-INFO\top_level.txt
+c:\users\faizs\appdata\local\programs\python\python310\lib\site-packages\draughts1-0.15-py3.10-win-amd64.egg\__pycache__\draughts1.cpython-310.pyc
